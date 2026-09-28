@@ -10,7 +10,15 @@ public class AccountService {
         this.accountRepository = repository;
     }
 
-    public void createAccount() {
-        accountRepository.save();
+    public String createAccount(CreateAccountRequest account) {
+        return "Created account for " + account.getOwner() + " with balance " + account.getInitialBalance();
+    }
+
+    public String getAccount(Long id) {
+        return "Account: " + id;
+    }
+
+    public String searchAccount(String owner) {
+        return "Searching account of: " + owner;
     }
 }
