@@ -2,6 +2,8 @@ package com.bankflow.account;
 
 import org.springframework.stereotype.Service;
 
+import java.math.BigDecimal;
+
 @Service
 public class AccountService {
     private final AccountRepository accountRepository;
@@ -10,12 +12,12 @@ public class AccountService {
         this.accountRepository = repository;
     }
 
-    public String createAccount(CreateAccountRequest account) {
-        return "Created account for " + account.getOwner() + " with balance " + account.getInitialBalance();
+    public AccountResponse createAccount(CreateAccountRequest account) {
+        return new AccountResponse(1L, account.getOwner(), account.getInitialBalance(), "ACTIVE");
     }
 
-    public String getAccount(Long id) {
-        return "Account: " + id;
+    public AccountResponse getAccount(Long id) {
+        return new AccountResponse(id, "Nghia", new BigDecimal("1000000000"), "ACTIVE");
     }
 
     public String searchAccount(String owner) {

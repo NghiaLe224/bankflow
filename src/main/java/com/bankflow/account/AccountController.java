@@ -1,5 +1,7 @@
 package com.bankflow.account;
 
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -13,8 +15,8 @@ public class AccountController {
     }
 
     @GetMapping("/{id}")
-    public String getAccount(@PathVariable Long id) {
-        return accountService.getAccount(id);
+    public ResponseEntity<AccountResponse> getAccount(@PathVariable Long id) {
+        return ResponseEntity.ok(accountService.getAccount(id));
     }
 
     @GetMapping("/search")
@@ -23,8 +25,8 @@ public class AccountController {
     }
 
     @PostMapping
-    public String createAccount(@RequestBody CreateAccountRequest account) {
-        return accountService.createAccount(account);
+    public ResponseEntity<AccountResponse> createAccount(@RequestBody CreateAccountRequest account) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(accountService.createAccount(account));
     }
 
 }
