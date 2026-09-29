@@ -1,4 +1,4 @@
-package com.bankflow.account;
+package com.bankflow.account.dto;
 
 import java.math.BigDecimal;
 

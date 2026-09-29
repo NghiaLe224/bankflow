@@ -1,6 +1,7 @@
-package com.bankflow.account;
+package com.bankflow.account.controller;
 
-import jakarta.validation.Valid;
+import com.bankflow.account.dto.AccountResponse;
+import com.bankflow.account.service.AccountService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -20,14 +21,15 @@ public class AccountController {
         return ResponseEntity.ok(accountService.getAccount(id));
     }
 
-    @GetMapping("/search")
-    public String searchAccount(@RequestParam String owner) {
-        return accountService.searchAccount(owner);
+    @PostMapping("/demo")
+    public ResponseEntity<Void> createAccount() {
+        accountService.createDemoAccount();
+        return ResponseEntity.status(HttpStatus.CREATED).build();
     }
 
-    @PostMapping
-    public ResponseEntity<AccountResponse> createAccount(@Valid @RequestBody CreateAccountRequest account) {
-        return ResponseEntity.status(HttpStatus.CREATED).body(accountService.createAccount(account));
+    @PatchMapping("{id}/block")
+    public ResponseEntity<Void> blockAccount(@PathVariable Long id) {
+        accountService.blockAccount(id);
+        return ResponseEntity.noContent().build();
     }
-
 }

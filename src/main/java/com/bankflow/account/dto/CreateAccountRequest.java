@@ -1,4 +1,4 @@
-package com.bankflow.account;
+package com.bankflow.account.dto;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
