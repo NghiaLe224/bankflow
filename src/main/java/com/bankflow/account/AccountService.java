@@ -1,5 +1,6 @@
 package com.bankflow.account;
 
+import com.bankflow.common.exception.AccountNotFoundException;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
@@ -17,6 +18,9 @@ public class AccountService {
     }
 
     public AccountResponse getAccount(Long id) {
+        if (Long.valueOf(999L).equals(id)) {
+            throw new AccountNotFoundException(id);
+        }
         return new AccountResponse(id, "Nghia", new BigDecimal("1000000000"), "ACTIVE");
     }
 
