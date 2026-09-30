@@ -11,6 +11,7 @@ import jakarta.transaction.Transactional;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
+import java.util.List;
 
 @Service
 public class AccountService {
@@ -51,6 +52,32 @@ public class AccountService {
                 account.getUser().getFullName(),
                 account.getBalance(),
                 account.getStatus().name());
+    }
+
+    @Transactional
+    public AccountResponse getByAccountNumber(String accountNumber) {
+        AccountEntity account = accountRepository.findByAccountNumber(accountNumber)
+                .orElseThrow(() -> new AccountNotFoundException(accountNumber));
+
+        return new AccountResponse(
+                account.getId(),
+                account.getUser().getFullName(),
+                account.getBalance(),
+                account.getStatus().name()
+        );
+    }
+
+    @Transactional
+    public List<AccountResponse> getAccountsByUserId(Long userId) {
+        return accountRepository.findByUserId(userId)
+                .stream()
+                .map(account -> new AccountResponse(
+                        account.getId(),
+                        account.getUser().getFullName(),
+                        account.getBalance(),
+                        account.getStatus().name()
+                ))
+                .toList();
     }
 
 

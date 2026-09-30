@@ -46,4 +46,9 @@ public class UserEntity {
     public List<AccountEntity> getAccounts() {
         return accounts;
     }
+
+    public void addAccount(AccountEntity account) {
+        this.accounts.add(account);
+        account.assignUser(this);
+    }
 }

@@ -78,4 +78,8 @@ public class AccountEntity {
     public void block() {
         this.status = AccountStatus.BLOCKED;
     }
+
+    public void assignUser(UserEntity user) {
+        this.user = user;
+    }
 }
