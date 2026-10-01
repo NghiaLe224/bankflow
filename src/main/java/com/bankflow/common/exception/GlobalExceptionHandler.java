@@ -27,6 +27,24 @@ public class GlobalExceptionHandler {
         );
     }
 
+    @ExceptionHandler(InvalidTransferException.class)
+    public ResponseEntity<ErrorResponse> handleInvalidTransfer(InvalidTransferException e) {
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(new ErrorResponse(
+                "INVALID_TRANSFER",
+                e.getMessage(),
+                LocalDateTime.now()
+        ));
+    }
+
+    @ExceptionHandler(TransferNotFoundException.class)
+    public ResponseEntity<ErrorResponse> handleTransferNotFound(TransferNotFoundException e) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(new ErrorResponse(
+                "TRANSFER_NOT_FOUND",
+                e.getMessage(),
+                LocalDateTime.now()
+        ));
+    }
+
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ErrorResponse> handleMethodArgumentNotValid(MethodArgumentNotValidException e) {
         Map<String, String> errors = new HashMap<>();
