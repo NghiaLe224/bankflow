@@ -1,7 +1,9 @@
 package com.bankflow.account.controller;
 
 import com.bankflow.account.dto.AccountResponse;
+import com.bankflow.account.dto.CreateAccountRequest;
 import com.bankflow.account.service.AccountService;
+import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -21,10 +23,11 @@ public class AccountController {
         return ResponseEntity.ok(accountService.getAccount(id));
     }
 
-    @PostMapping("/demo")
-    public ResponseEntity<Void> createAccount() {
-        accountService.createDemoAccount();
-        return ResponseEntity.status(HttpStatus.CREATED).build();
+    @PostMapping
+    public ResponseEntity<AccountResponse> createAccount(
+            @Valid @RequestBody CreateAccountRequest request
+    ) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(accountService.createAccount(request));
     }
 
     @PatchMapping("{id}/block")

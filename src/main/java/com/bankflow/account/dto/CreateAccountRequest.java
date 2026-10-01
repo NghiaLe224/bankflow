@@ -8,20 +8,32 @@ import jakarta.validation.constraints.Size;
 import java.math.BigDecimal;
 
 public class CreateAccountRequest {
-    @NotBlank(message = "Owner must not be blank")
-    @Size(min = 2, max = 100, message = "Owner must be between 2 and 100 characters")
-    private String owner;
+
+    @NotNull(message = "User id is required")
+    private Long userId;
+
+    @NotBlank(message = "Account number must not be blank")
+    @Size(max = 30, message = "Account number must not exceed 30 characters")
+    private String accountNumber;
 
     @NotNull(message = "Initial balance is required")
     @PositiveOrZero(message = "Initial balance must be greater than or equal to 0")
     private BigDecimal initialBalance;
 
-    public String getOwner() {
-        return owner;
+    public Long getUserId() {
+        return userId;
     }
 
-    public void setOwner(String owner) {
-        this.owner = owner;
+    public void setUserId(Long userId) {
+        this.userId = userId;
+    }
+
+    public String getAccountNumber() {
+        return accountNumber;
+    }
+
+    public void setAccountNumber(String accountNumber) {
+        this.accountNumber = accountNumber;
     }
 
     public BigDecimal getInitialBalance() {

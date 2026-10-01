@@ -1,16 +1,17 @@
 package com.bankflow.account.service;
 
 import com.bankflow.account.dto.AccountResponse;
+import com.bankflow.account.dto.CreateAccountRequest;
 import com.bankflow.account.entity.AccountEntity;
 import com.bankflow.account.enums.AccountStatus;
 import com.bankflow.account.repository.AccountRepository;
 import com.bankflow.common.exception.AccountNotFoundException;
+import com.bankflow.common.exception.UserNotFoundException;
 import com.bankflow.user.entity.UserEntity;
 import com.bankflow.user.repository.UserRepository;
 import jakarta.transaction.Transactional;
 import org.springframework.stereotype.Service;
 
-import java.math.BigDecimal;
 import java.util.List;
 
 @Service
@@ -24,14 +25,26 @@ public class AccountService {
     }
 
     @Transactional
-    public void createDemoAccount() {
-        UserEntity user = new UserEntity("Le Trong Nghia", "nghia@gmail.com");
-        userRepository.save(user);
+    public AccountResponse createAccount(CreateAccountRequest request) {
+        UserEntity user = userRepository.findById(request.getUserId())
+                .orElseThrow(() -> new UserNotFoundException(request.getUserId()));
 
         AccountEntity account = new AccountEntity(
-                user, "ACC001", new BigDecimal("10000000000"), AccountStatus.ACTIVE
+                user,
+                request.getAccountNumber(),
+                request.getInitialBalance(),
+                AccountStatus.ACTIVE
         );
-        accountRepository.save(account);
+
+        AccountEntity savedAccount = accountRepository.save(account);
+
+        return new AccountResponse(
+                savedAccount.getId(),
+                savedAccount.getUser().getFullName(),
+                savedAccount.getBalance(),
+                savedAccount.getStatus().name()
+
+        );
     }
 
     @Transactional
