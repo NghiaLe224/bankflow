@@ -1,10 +1,12 @@
 package com.bankflow.transfer.service;
 
 import com.bankflow.account.entity.AccountEntity;
+import com.bankflow.account.enums.AccountStatus;
 import com.bankflow.account.repository.AccountRepository;
 import com.bankflow.common.exception.AccountNotFoundException;
 import com.bankflow.common.exception.InvalidTransferException;
 import com.bankflow.common.exception.TransferNotFoundException;
+import com.bankflow.ledger.service.LedgerService;
 import com.bankflow.transfer.dto.CreateTransferRequest;
 import com.bankflow.transfer.dto.TransferResponse;
 import com.bankflow.transfer.entity.TransferEntity;
@@ -12,6 +14,7 @@ import com.bankflow.transfer.enums.Currency;
 import com.bankflow.transfer.enums.TransferStatus;
 import com.bankflow.transfer.mapper.TransferMapper;
 import com.bankflow.transfer.repository.TransferRepository;
+import com.bankflow.user.entity.UserEntity;
 import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -43,12 +46,15 @@ class TransferServiceTest {
     @Mock
     private TransferMapper transferMapper;
 
+    @Mock
+    private LedgerService ledgerService;
+
     @InjectMocks
     private TransferService transferService;
 
     @Test
-    void createTransfer_shouldCreatePendingTransfer_whenRequestIsValid() {
-        // Arrange
+    void createTransfer_shouldCompleteTransferAndCreateLedger_whenRequestIsValid() {
+        UserEntity user = mock(UserEntity.class);
         CreateTransferRequest request = new CreateTransferRequest(
                 1L,
                 2L,
@@ -56,8 +62,24 @@ class TransferServiceTest {
                 Currency.VND
         );
 
-        AccountEntity fromAccount = mock(AccountEntity.class);
-        AccountEntity toAccount = mock(AccountEntity.class);
+        AccountEntity fromAccount = new AccountEntity(
+                user,
+                "123",
+                new BigDecimal("5000000"),
+                AccountStatus.ACTIVE
+        );
+
+        AccountEntity toAccount = new AccountEntity(
+                user,
+                "456",
+                new BigDecimal("5000000"),
+                AccountStatus.ACTIVE
+        );
+
+        when(accountRepository.findById(request.getFromAccountId())).thenReturn(Optional.of(fromAccount));
+        when(accountRepository.findById(request.getToAccountId())).thenReturn(Optional.of(toAccount));
+        when(transferRepository.saveAndFlush(any(TransferEntity.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
 
         TransferResponse expectedResponse = new TransferResponse(
                 10L,
@@ -65,61 +87,56 @@ class TransferServiceTest {
                 2L,
                 new BigDecimal("500000"),
                 Currency.VND,
-                TransferStatus.PENDING,
-                LocalDateTime.of(2026, 10, 1, 18, 30)
+                TransferStatus.COMPLETED,
+                LocalDateTime.now()
         );
 
-        when(accountRepository.findById(1L))
-                .thenReturn(Optional.of(fromAccount));
+        when(transferMapper.toResponse(any(TransferEntity.class))).thenReturn(expectedResponse);
 
-        when(accountRepository.findById(2L))
-                .thenReturn(Optional.of(toAccount));
+        //act
+        TransferResponse result = transferService.createTransfer(request);
 
-        when(transferRepository.saveAndFlush(any(TransferEntity.class)))
-                .thenAnswer(invocation -> invocation.getArgument(0));
+        //assert
+        ArgumentCaptor<TransferEntity> transferCaptor = ArgumentCaptor.forClass(TransferEntity.class);
+        verify(transferRepository, times(1)).saveAndFlush(transferCaptor.capture());
+        TransferEntity transfer = transferCaptor.getValue();
 
-        when(transferMapper.toResponse(any(TransferEntity.class)))
-                .thenReturn(expectedResponse);
-
-        // Act
-        TransferResponse actualResponse =
-                transferService.createTransfer(request);
-
-        // Assert response
-        assertSame(expectedResponse, actualResponse);
-
-        // Capture the actual entity created by the service
-        ArgumentCaptor<TransferEntity> captor =
-                ArgumentCaptor.forClass(TransferEntity.class);
-
-        verify(transferRepository).saveAndFlush(captor.capture());
-
-        TransferEntity transferToSave = captor.getValue();
-
-        assertSame(fromAccount, transferToSave.getFromAccount());
-        assertSame(toAccount, transferToSave.getToAccount());
+        assertSame(fromAccount, transfer.getFromAccount());
+        assertSame(toAccount, transfer.getToAccount());
 
         assertEquals(
-                new BigDecimal("500000"),
-                transferToSave.getAmount()
+                0,
+                request.getAmount().compareTo(transfer.getAmount())
+        );
+
+        assertEquals(request.getCurrency(), transfer.getCurrency());
+
+        assertEquals(
+                TransferStatus.COMPLETED,
+                transfer.getStatus()
         );
 
         assertEquals(
-                Currency.VND,
-                transferToSave.getCurrency()
+                0,
+                fromAccount.getBalance()
+                        .compareTo(new BigDecimal("4500000"))
         );
 
         assertEquals(
-                TransferStatus.PENDING,
-                transferToSave.getStatus()
+                0,
+                toAccount.getBalance()
+                        .compareTo(new BigDecimal("5500000"))
         );
 
-        // Verify orchestration
-        verify(accountRepository).findById(1L);
-        verify(accountRepository).findById(2L);
+        verify(ledgerService)
+                .createBalancedEntries(transfer);
 
-        verify(entityManager).refresh(transferToSave);
-        verify(transferMapper).toResponse(transferToSave);
+        verify(entityManager).flush();
+        verify(entityManager).refresh(transfer);
+
+        verify(transferMapper).toResponse(transfer);
+
+        assertSame(expectedResponse, result);
     }
 
     @Test

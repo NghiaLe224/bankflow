@@ -76,4 +76,12 @@ public class TransferEntity {
     public LocalDateTime getCreatedAt() {
         return createdAt;
     }
+
+    public void markCompleted() {
+        this.status = TransferStatus.COMPLETED;
+    }
+
+    public void markFailed() {
+        this.status = TransferStatus.FAILED;
+    }
 }

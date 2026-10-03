@@ -5,6 +5,7 @@ import com.bankflow.account.repository.AccountRepository;
 import com.bankflow.common.exception.AccountNotFoundException;
 import com.bankflow.common.exception.InvalidTransferException;
 import com.bankflow.common.exception.TransferNotFoundException;
+import com.bankflow.ledger.service.LedgerService;
 import com.bankflow.transfer.dto.CreateTransferRequest;
 import com.bankflow.transfer.dto.TransferResponse;
 import com.bankflow.transfer.entity.TransferEntity;
@@ -21,14 +22,19 @@ public class TransferService {
     private final EntityManager entityManager;
     private final AccountRepository accountRepository;
     private final TransferMapper transferMapper;
+    private final LedgerService ledgerService;
 
     public TransferService(TransferRepository transferRepository,
                            EntityManager entityManager,
-                           AccountRepository accountRepository, TransferMapper transferMapper) {
+                           AccountRepository accountRepository,
+                           TransferMapper transferMapper,
+                           LedgerService ledgerService
+    ) {
         this.transferRepository = transferRepository;
         this.entityManager = entityManager;
         this.accountRepository = accountRepository;
         this.transferMapper = transferMapper;
+        this.ledgerService = ledgerService;
     }
 
     @Transactional
@@ -49,10 +55,17 @@ public class TransferService {
                 request.getAmount(),
                 request.getCurrency(),
                 TransferStatus.PENDING
-
         );
 
         TransferEntity savedTransfer = transferRepository.saveAndFlush(transfer);
+
+        fromAccount.debit(savedTransfer.getAmount());
+        toAccount.credit(savedTransfer.getAmount());
+
+        ledgerService.createBalancedEntries(savedTransfer);
+        savedTransfer.markCompleted();
+
+        entityManager.flush();
         entityManager.refresh(savedTransfer);
 
         return transferMapper.toResponse(savedTransfer);

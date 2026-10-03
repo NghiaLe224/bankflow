@@ -45,6 +45,15 @@ public class GlobalExceptionHandler {
         ));
     }
 
+    @ExceptionHandler(InsufficientFundsException.class)
+    public ResponseEntity<ErrorResponse> handleInsufficientFunds(InsufficientFundsException e) {
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(new ErrorResponse(
+                "INSUFFICIENT_FUNDS",
+                e.getMessage(),
+                LocalDateTime.now()
+        ));
+    }
+
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ErrorResponse> handleMethodArgumentNotValid(MethodArgumentNotValidException e) {
         Map<String, String> errors = new HashMap<>();
