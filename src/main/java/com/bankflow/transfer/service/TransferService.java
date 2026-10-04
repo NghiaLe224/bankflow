@@ -1,7 +1,9 @@
 package com.bankflow.transfer.service;
 
 import com.bankflow.account.entity.AccountEntity;
+import com.bankflow.account.enums.AccountStatus;
 import com.bankflow.account.repository.AccountRepository;
+import com.bankflow.common.exception.AccountInactiveException;
 import com.bankflow.common.exception.AccountNotFoundException;
 import com.bankflow.common.exception.InvalidTransferException;
 import com.bankflow.common.exception.TransferNotFoundException;
@@ -39,6 +41,13 @@ public class TransferService {
 
     @Transactional
     public TransferResponse createTransfer(CreateTransferRequest request) {
+        if (request.getAmount() == null
+                || request.getAmount().signum() <= 0) {
+            throw new InvalidTransferException(
+                    "Transfer amount must be greater than zero"
+            );
+        }
+
         if (request.getFromAccountId().equals(request.getToAccountId())) {
             throw new InvalidTransferException("Source and destination accounts must be different");
         }
@@ -48,6 +57,14 @@ public class TransferService {
 
         AccountEntity toAccount = accountRepository.findById(request.getToAccountId())
                 .orElseThrow(() -> new AccountNotFoundException(request.getToAccountId()));
+
+        if (fromAccount.getStatus() != AccountStatus.ACTIVE) {
+            throw new AccountInactiveException(fromAccount.getId());
+        }
+
+        if (toAccount.getStatus() != AccountStatus.ACTIVE) {
+            throw new AccountInactiveException(toAccount.getId());
+        }
 
         TransferEntity transfer = new TransferEntity(
                 fromAccount,
