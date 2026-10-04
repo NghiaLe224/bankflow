@@ -1,6 +1,5 @@
 package com.bankflow.account.entity;
 
-import com.bankflow.account.entity.AccountEntity;
 import com.bankflow.account.enums.AccountStatus;
 import com.bankflow.common.exception.InsufficientFundsException;
 import com.bankflow.user.entity.UserEntity;

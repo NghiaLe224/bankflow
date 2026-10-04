@@ -5,6 +5,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
+import org.springframework.web.method.annotation.HandlerMethodValidationException;
 
 import java.time.LocalDateTime;
 import java.util.HashMap;
@@ -59,6 +60,32 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.CONFLICT).body(
                 new ErrorResponse(
                         "ACCOUNT_INACTIVE",
+                        e.getMessage(),
+                        LocalDateTime.now()
+                )
+        );
+    }
+
+    @ExceptionHandler(HandlerMethodValidationException.class)
+    public ResponseEntity<ErrorResponse> handleHandlerMethodValidation(
+            HandlerMethodValidationException e
+    ) {
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(
+                new ErrorResponse(
+                        "VALIDATION_FAILED",
+                        "Request validation failed",
+                        LocalDateTime.now()
+                )
+        );
+    }
+
+    @ExceptionHandler(InvalidTransferFilterException.class)
+    public ResponseEntity<ErrorResponse> handleInvalidTransferFilter(
+            InvalidTransferFilterException e
+    ) {
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(
+                new ErrorResponse(
+                        "INVALID_TRANSFER_FILTER",
                         e.getMessage(),
                         LocalDateTime.now()
                 )

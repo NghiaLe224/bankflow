@@ -3,10 +3,8 @@ package com.bankflow.transfer.service;
 import com.bankflow.account.entity.AccountEntity;
 import com.bankflow.account.enums.AccountStatus;
 import com.bankflow.account.repository.AccountRepository;
-import com.bankflow.common.exception.AccountInactiveException;
-import com.bankflow.common.exception.AccountNotFoundException;
-import com.bankflow.common.exception.InvalidTransferException;
-import com.bankflow.common.exception.TransferNotFoundException;
+import com.bankflow.common.dto.PageResponse;
+import com.bankflow.common.exception.*;
 import com.bankflow.ledger.service.LedgerService;
 import com.bankflow.transfer.dto.CreateTransferRequest;
 import com.bankflow.transfer.dto.TransferResponse;
@@ -14,9 +12,17 @@ import com.bankflow.transfer.entity.TransferEntity;
 import com.bankflow.transfer.enums.TransferStatus;
 import com.bankflow.transfer.mapper.TransferMapper;
 import com.bankflow.transfer.repository.TransferRepository;
+import com.bankflow.transfer.specification.TransferSpecification;
 import jakarta.persistence.EntityManager;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.time.LocalDateTime;
 
 @Service
 public class TransferService {
@@ -94,6 +100,52 @@ public class TransferService {
                 .orElseThrow(() -> new TransferNotFoundException(id));
 
         return transferMapper.toResponse(transfer);
+    }
+
+    @Transactional(readOnly = true)
+    public PageResponse<TransferResponse> getTransferHistory(
+            int page,
+            int size,
+            TransferStatus status,
+            Long accountId,
+            LocalDateTime from,
+            LocalDateTime to) {
+
+        if (from != null && to != null && from.isAfter(to)) {
+            throw new InvalidTransferFilterException(
+                    "from must be before or equal to to"
+            );
+        }
+
+        Pageable pageable = PageRequest.of(
+                page,
+                size,
+                Sort.Direction.DESC,
+                "createdAt",
+                "id"
+        );
+
+        Specification<TransferEntity> spec = Specification.unrestricted();
+
+        if (status != null) {
+            spec = spec.and(TransferSpecification.hasStatus(status));
+        }
+
+        if (accountId != null) {
+            spec = spec.and(TransferSpecification.hasAccount(accountId));
+        }
+
+        if (from != null) {
+            spec = spec.and(TransferSpecification.createdAtFrom(from));
+        }
+
+        if (to != null) {
+            spec = spec.and(TransferSpecification.createdAtTo(to));
+        }
+
+        Page<TransferEntity> transfers = transferRepository.findAll(spec, pageable);
+
+        return PageResponse.from(transfers.map(transferMapper::toResponse));
     }
 
 }
