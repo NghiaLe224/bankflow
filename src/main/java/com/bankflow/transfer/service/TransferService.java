@@ -47,22 +47,22 @@ public class TransferService {
 
     @Transactional
     public TransferResponse createTransfer(CreateTransferRequest request) {
-        if (request.getAmount() == null
-                || request.getAmount().signum() <= 0) {
+        if (request.amount() == null
+                || request.amount().signum() <= 0) {
             throw new InvalidTransferException(
                     "Transfer amount must be greater than zero"
             );
         }
 
-        if (request.getFromAccountId().equals(request.getToAccountId())) {
+        if (request.fromAccountId().equals(request.toAccountId())) {
             throw new InvalidTransferException("Source and destination accounts must be different");
         }
 
-        AccountEntity fromAccount = accountRepository.findById(request.getFromAccountId())
-                .orElseThrow(() -> new AccountNotFoundException(request.getFromAccountId()));
+        AccountEntity fromAccount = accountRepository.findById(request.fromAccountId())
+                .orElseThrow(() -> new AccountNotFoundException(request.fromAccountId()));
 
-        AccountEntity toAccount = accountRepository.findById(request.getToAccountId())
-                .orElseThrow(() -> new AccountNotFoundException(request.getToAccountId()));
+        AccountEntity toAccount = accountRepository.findById(request.toAccountId())
+                .orElseThrow(() -> new AccountNotFoundException(request.toAccountId()));
 
         if (fromAccount.getStatus() != AccountStatus.ACTIVE) {
             throw new AccountInactiveException(fromAccount.getId());
@@ -75,8 +75,8 @@ public class TransferService {
         TransferEntity transfer = new TransferEntity(
                 fromAccount,
                 toAccount,
-                request.getAmount(),
-                request.getCurrency(),
+                request.amount(),
+                request.currency(),
                 TransferStatus.PENDING
         );
 

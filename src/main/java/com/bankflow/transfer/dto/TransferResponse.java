@@ -2,55 +2,52 @@ package com.bankflow.transfer.dto;
 
 import com.bankflow.transfer.enums.Currency;
 import com.bankflow.transfer.enums.TransferStatus;
+import io.swagger.v3.oas.annotations.media.Schema;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
-public class TransferResponse {
+public record TransferResponse(
 
-    private Long id;
-    private Long fromAccountId;
-    private Long toAccountId;
-    private BigDecimal amount;
-    private Currency currency;
-    private TransferStatus status;
-    private LocalDateTime createdAt;
+        @Schema(
+                description = "Unique transfer identifier",
+                example = "10"
+        )
+        Long id,
 
-    public TransferResponse(Long id, Long fromAccountId, Long toAccountId, BigDecimal amount, Currency currency, TransferStatus status, LocalDateTime createdAt) {
-        this.id = id;
-        this.fromAccountId = fromAccountId;
-        this.toAccountId = toAccountId;
-        this.amount = amount;
-        this.currency = currency;
-        this.status = status;
-        this.createdAt = createdAt;
-    }
+        @Schema(
+                description = "Source account identifier",
+                example = "1"
+        )
+        Long fromAccountId,
 
-    public Long getId() {
-        return id;
-    }
+        @Schema(
+                description = "Destination account identifier",
+                example = "2"
+        )
+        Long toAccountId,
 
-    public Long getFromAccountId() {
-        return fromAccountId;
-    }
+        @Schema(
+                description = "Transfer amount",
+                example = "500000.00"
+        )
+        BigDecimal amount,
 
-    public Long getToAccountId() {
-        return toAccountId;
-    }
+        @Schema(
+                description = "Currency used for the transfer",
+                example = "VND"
+        )
+        Currency currency,
 
-    public BigDecimal getAmount() {
-        return amount;
-    }
+        @Schema(
+                description = "Current transfer status",
+                example = "COMPLETED"
+        )
+        TransferStatus status,
 
-    public Currency getCurrency() {
-        return currency;
-    }
-
-    public TransferStatus getStatus() {
-        return status;
-    }
-
-    public LocalDateTime getCreatedAt() {
-        return createdAt;
-    }
-}
+        @Schema(
+                description = "Time when the transfer was created",
+                example = "2026-10-03T17:09:33"
+        )
+        LocalDateTime createdAt
+) {}

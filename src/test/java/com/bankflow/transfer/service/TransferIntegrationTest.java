@@ -100,7 +100,7 @@ class TransferIntegrationTest {
             // Act
             // transferService.createTransfer(request)
             TransferResponse response = transferService.createTransfer(request);
-            transferId = response.getId();
+            transferId = response.id();
 
             // Assert
             // reload sender
@@ -116,8 +116,8 @@ class TransferIntegrationTest {
             assertEquals(0, new BigDecimal("3500000").compareTo(reloadToAccount.getBalance()));
 
             // load transfer using returned id
-            TransferEntity savedTransfer = transferRepository.findById(response.getId())
-                    .orElseThrow(() -> new TransferNotFoundException(response.getId()));
+            TransferEntity savedTransfer = transferRepository.findById(response.id())
+                    .orElseThrow(() -> new TransferNotFoundException(response.id()));
             // assert status COMPLETED
             assertEquals(TransferStatus.COMPLETED, savedTransfer.getStatus());
 
@@ -140,11 +140,11 @@ class TransferIntegrationTest {
                     .findFirst()
                     .orElseThrow();
 
-            assertEquals(0, request.getAmount().compareTo(loadedFromLedger.getAmount()));
-            assertEquals(0, request.getAmount().compareTo(loadedToLedger.getAmount()));
+            assertEquals(0, request.amount().compareTo(loadedFromLedger.getAmount()));
+            assertEquals(0, request.amount().compareTo(loadedToLedger.getAmount()));
 
-            assertEquals(request.getCurrency(), loadedFromLedger.getCurrency());
-            assertEquals(request.getCurrency(), loadedToLedger.getCurrency());
+            assertEquals(request.currency(), loadedFromLedger.getCurrency());
+            assertEquals(request.currency(), loadedToLedger.getCurrency());
 
             assertEquals(loadedFromLedger.getAccount().getId(), fromAccount.getId());
             assertEquals(loadedToLedger.getAccount().getId(), toAccount.getId());

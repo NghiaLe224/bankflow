@@ -76,8 +76,8 @@ class TransferServiceTest {
                 AccountStatus.ACTIVE
         );
 
-        when(accountRepository.findById(request.getFromAccountId())).thenReturn(Optional.of(fromAccount));
-        when(accountRepository.findById(request.getToAccountId())).thenReturn(Optional.of(toAccount));
+        when(accountRepository.findById(request.fromAccountId())).thenReturn(Optional.of(fromAccount));
+        when(accountRepository.findById(request.toAccountId())).thenReturn(Optional.of(toAccount));
         when(transferRepository.saveAndFlush(any(TransferEntity.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -106,10 +106,10 @@ class TransferServiceTest {
 
         assertEquals(
                 0,
-                request.getAmount().compareTo(transfer.getAmount())
+                request.amount().compareTo(transfer.getAmount())
         );
 
-        assertEquals(request.getCurrency(), transfer.getCurrency());
+        assertEquals(request.currency(), transfer.getCurrency());
 
         assertEquals(
                 TransferStatus.COMPLETED,
