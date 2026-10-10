@@ -23,12 +23,21 @@ public class UserEntity {
     @Column(name = "email", nullable = false, length = 255, unique = true)
     private String email;
 
+    @Column(name = "password_hash", length = 255)
+    private String passwordHash;
+
     protected UserEntity() {
     }
 
     public UserEntity(String fullName, String email) {
         this.fullName = fullName;
         this.email = email;
+    }
+
+    public UserEntity(String fullName, String email, String passwordHash) {
+        this.fullName = fullName;
+        this.email = email;
+        this.passwordHash = passwordHash;
     }
 
     public Long getId() {
@@ -50,5 +59,9 @@ public class UserEntity {
     public void addAccount(AccountEntity account) {
         this.accounts.add(account);
         account.assignUser(this);
+    }
+
+    public String getPasswordHash() {
+        return passwordHash;
     }
 }
