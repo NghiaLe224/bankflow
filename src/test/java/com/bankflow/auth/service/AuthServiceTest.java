@@ -6,6 +6,7 @@ import com.bankflow.auth.dto.RegisterRequest;
 import com.bankflow.auth.dto.RegisterResponse;
 import com.bankflow.auth.exception.EmailAlreadyExistsException;
 import com.bankflow.auth.exception.InvalidCredentialsException;
+import com.bankflow.security.jwt.JwtTokenService;
 import com.bankflow.user.entity.UserEntity;
 import com.bankflow.user.repository.UserRepository;
 import org.junit.jupiter.api.Test;
@@ -15,6 +16,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.Optional;
 
@@ -30,6 +32,9 @@ public class AuthServiceTest {
 
     @Mock
     private PasswordEncoder passwordEncoder;
+
+    @Mock
+    private JwtTokenService jwtTokenService;
 
     @InjectMocks
     private AuthService authService;
@@ -97,6 +102,16 @@ public class AuthServiceTest {
                 "12345678",
                 "$2a$fake-hash"
         )).thenReturn(true);
+        ReflectionTestUtils.setField(user, "id", 123L);
+        when(jwtTokenService.generateAccessToken(
+                123L,
+                "nghia@example.com"
+        )).thenReturn("fake-access-token");
+
+        when(jwtTokenService.generateRefreshToken(
+                123L,
+                "nghia@example.com"
+        )).thenReturn("fake-refresh-token");
 
         LoginResponse response = authService.login(request);
 
@@ -108,6 +123,14 @@ public class AuthServiceTest {
                 .encode(anyString());
         assertEquals("Le Trong Nghia", response.fullName());
         assertEquals("nghia@example.com", response.email());
+        assertEquals("fake-access-token", response.accessToken());
+        assertEquals("fake-refresh-token", response.refreshToken());
+        assertEquals("Bearer", response.tokenType());
+        verify(jwtTokenService)
+                .generateAccessToken(123L, "nghia@example.com");
+
+        verify(jwtTokenService)
+                .generateRefreshToken(123L, "nghia@example.com");
     }
 
     @Test
@@ -122,6 +145,7 @@ public class AuthServiceTest {
         );
         verify(passwordEncoder, never())
                 .matches(anyString(), anyString());
+        verifyNoInteractions(jwtTokenService);
     }
 
     @Test
@@ -154,6 +178,7 @@ public class AuthServiceTest {
                 "wrong-password",
                 "$2a$fake-hash"
         );
+        verifyNoInteractions(jwtTokenService);
     }
 
     @Test
@@ -178,6 +203,7 @@ public class AuthServiceTest {
 
         verify(userRepository).findByEmail("legacy@example.com");
         verifyNoInteractions(passwordEncoder);
+        verifyNoInteractions(jwtTokenService);
     }
 
 }

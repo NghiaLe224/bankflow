@@ -1,7 +1,11 @@
 package com.bankflow.auth.controller;
 
+import com.bankflow.auth.dto.LoginRequest;
+import com.bankflow.auth.dto.LoginResponse;
 import com.bankflow.auth.dto.RegisterRequest;
 import com.bankflow.auth.service.AuthService;
+import com.bankflow.config.JwtProperties;
+import com.bankflow.security.jwt.JwtTokenService;
 import com.bankflow.user.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -10,6 +14,8 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
+
+import java.time.Duration;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -27,6 +33,9 @@ public class AuthControllerTest {
 
     @Autowired
     private UserRepository userRepository;
+
+    @Autowired
+    private JwtProperties jwtProperties;
 
     @BeforeEach
     void cleanUp() {
@@ -120,17 +129,20 @@ public class AuthControllerTest {
         mockMvc.perform(post("/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                            {
-                              "email": "LOGINUSER@EXAMPLE.COM",
-                              "password": "12345678"
-                            }
-                            """))
+                                {
+                                  "email": "LOGINUSER@EXAMPLE.COM",
+                                  "password": "12345678"
+                                }
+                                """))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").exists())
                 .andExpect(jsonPath("$.fullName").value("Login User"))
                 .andExpect(jsonPath("$.email").value("loginuser@example.com"))
                 .andExpect(jsonPath("$.password").doesNotExist())
-                .andExpect(jsonPath("$.passwordHash").doesNotExist());
+                .andExpect(jsonPath("$.passwordHash").doesNotExist())
+                .andExpect(jsonPath("$.accessToken").isString())
+                .andExpect(jsonPath("$.refreshToken").isString())
+                .andExpect(jsonPath("$.tokenType").value("Bearer"));
     }
 
     @Test
@@ -138,11 +150,11 @@ public class AuthControllerTest {
         mockMvc.perform(post("/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                            {
-                              "email": "invalid-email",
-                              "password": "123"
-                            }
-                            """))
+                                {
+                                  "email": "invalid-email",
+                                  "password": "123"
+                                }
+                                """))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
                 .andExpect(jsonPath("$.errors.email").exists())
@@ -154,11 +166,11 @@ public class AuthControllerTest {
         mockMvc.perform(post("/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                            {
-                              "email": "missing@example.com",
-                              "password": "12345678"
-                            }
-                            """))
+                                {
+                                  "email": "missing@example.com",
+                                  "password": "12345678"
+                                }
+                                """))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.code").value("INVALID_CREDENTIALS"))
                 .andExpect(jsonPath("$.message")
@@ -172,14 +184,130 @@ public class AuthControllerTest {
         mockMvc.perform(post("/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                            {
-                              "email": "loginuser@example.com",
-                              "password": "wrong-password"
-                            }
-                            """))
+                                {
+                                  "email": "loginuser@example.com",
+                                  "password": "wrong-password"
+                                }
+                                """))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.code").value("INVALID_CREDENTIALS"))
                 .andExpect(jsonPath("$.message")
                         .value("Invalid email or password"));
+    }
+
+    @Test
+    void refresh_shouldReturn200_whenRefreshTokenIsValid() throws Exception {
+        createLoginUser();
+
+        LoginResponse loginResponse = authService.login(
+                new LoginRequest(
+                        "loginuser@example.com",
+                        "12345678"
+                )
+        );
+
+        mockMvc.perform(post("/auth/refresh")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "refreshToken": "%s"
+                                }
+                                """.formatted(
+                                loginResponse.refreshToken()
+                        )))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.accessToken").isString())
+                .andExpect(jsonPath("$.tokenType").value("Bearer"));
+    }
+
+    @Test
+    void refresh_shouldFailed_whenUsingAccessToken() throws Exception {
+        createLoginUser();
+
+        LoginResponse loginResponse = authService.login(
+                new LoginRequest(
+                        "loginuser@example.com",
+                        "12345678"
+                )
+        );
+
+        mockMvc.perform(post("/auth/refresh")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "refreshToken": "%s"
+                                }
+                                """.formatted(
+                                loginResponse.accessToken()
+                        )))
+
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("INVALID_TOKEN"));
+    }
+
+    @Test
+    void refresh_shouldReturn401_whenRefreshTokenInvalid() throws Exception {
+
+        mockMvc.perform(post("/auth/refresh")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "refreshToken": "not-a-valid-jwt"
+                                }
+                                """)
+                )
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("INVALID_TOKEN"));
+    }
+
+    @Test
+    void refresh_shouldReturn401_whenRefreshTokenIsExpired() throws Exception {
+        createLoginUser();
+
+        LoginResponse loginResponse = authService.login(
+                new LoginRequest(
+                        "loginuser@example.com",
+                        "12345678"
+                )
+        );
+
+        JwtProperties expiredProperties =
+                new JwtProperties(
+                        jwtProperties.secret(),
+                        jwtProperties.accessTokenExpiration(),
+                        Duration.ofSeconds(-1)
+                );
+
+        JwtTokenService expiredJwtTokenService =
+                new JwtTokenService(expiredProperties);
+
+        String expiredRefreshToken =
+                expiredJwtTokenService.generateRefreshToken(
+                        loginResponse.id(),
+                        loginResponse.email()
+                );
+
+        mockMvc.perform(post("/auth/refresh")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "refreshToken": "%s"
+                                }
+                                """.formatted(expiredRefreshToken)))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("TOKEN_EXPIRED"));
+    }
+
+    @Test
+    void refresh_shouldReturn400_whenRefreshTokenIsBlank() throws Exception {
+        mockMvc.perform(post("/auth/refresh")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "refreshToken": ""
+                                }
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"));
     }
 }

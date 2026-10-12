@@ -2,6 +2,8 @@ package com.bankflow.common.exception;
 
 import com.bankflow.auth.exception.EmailAlreadyExistsException;
 import com.bankflow.auth.exception.InvalidCredentialsException;
+import com.bankflow.security.jwt.exception.InvalidJwtTokenException;
+import com.bankflow.security.jwt.exception.JwtTokenExpiredException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -103,6 +105,24 @@ public class GlobalExceptionHandler {
                         LocalDateTime.now()
                 )
         );
+    }
+
+    @ExceptionHandler(InvalidJwtTokenException.class)
+    public ResponseEntity<ErrorResponse> handleInvalidJwtToken(InvalidJwtTokenException e) {
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(new ErrorResponse(
+                "INVALID_TOKEN",
+                e.getMessage(),
+                LocalDateTime.now()
+        ));
+    }
+
+    @ExceptionHandler(JwtTokenExpiredException.class)
+    public ResponseEntity<ErrorResponse> handleJwtTokenExpired(JwtTokenExpiredException e) {
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(new ErrorResponse(
+                "TOKEN_EXPIRED",
+                e.getMessage(),
+                LocalDateTime.now()
+        ));
     }
 
     @ExceptionHandler(InvalidCredentialsException.class)

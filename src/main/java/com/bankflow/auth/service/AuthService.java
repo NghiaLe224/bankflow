@@ -1,13 +1,13 @@
 package com.bankflow.auth.service;
 
-import com.bankflow.auth.dto.LoginRequest;
-import com.bankflow.auth.dto.LoginResponse;
-import com.bankflow.auth.dto.RegisterRequest;
-import com.bankflow.auth.dto.RegisterResponse;
+import com.bankflow.auth.dto.*;
 import com.bankflow.auth.exception.EmailAlreadyExistsException;
 import com.bankflow.auth.exception.InvalidCredentialsException;
+import com.bankflow.security.jwt.JwtTokenService;
+import com.bankflow.security.jwt.exception.InvalidJwtTokenException;
 import com.bankflow.user.entity.UserEntity;
 import com.bankflow.user.repository.UserRepository;
+import io.jsonwebtoken.Claims;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -19,13 +19,16 @@ public class AuthService {
 
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
+    private final JwtTokenService jwtTokenService;
 
     public AuthService(
             UserRepository userRepository,
-            PasswordEncoder passwordEncoder
+            PasswordEncoder passwordEncoder,
+            JwtTokenService jwtTokenService
     ) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
+        this.jwtTokenService = jwtTokenService;
     }
 
     @Transactional
@@ -56,6 +59,26 @@ public class AuthService {
         if (user.getPasswordHash() == null || !passwordEncoder.matches(request.password(), user.getPasswordHash())) {
             throw new InvalidCredentialsException();
         }
-        return new LoginResponse(user.getId(), user.getFullName(), user.getEmail());
+        String accessToken = jwtTokenService.generateAccessToken(user.getId(), user.getEmail());
+        String refreshToken = jwtTokenService.generateRefreshToken(user.getId(), user.getEmail());
+        return new LoginResponse(user.getId(), user.getFullName(), user.getEmail(), accessToken, refreshToken, "Bearer");
+    }
+
+    @Transactional(readOnly = true)
+    public RefreshTokenResponse refresh(RefreshTokenRequest request) {
+        Claims claims = jwtTokenService.parseRefreshToken(request.refreshToken());
+        Long id;
+        try {
+            id = Long.valueOf(claims.getSubject());
+        } catch (NumberFormatException e) {
+            throw new InvalidJwtTokenException();
+        }
+
+        UserEntity user = userRepository.findById(id)
+                .orElseThrow(InvalidJwtTokenException::new);
+
+        String newAccessToken = jwtTokenService.generateAccessToken(user.getId(), user.getEmail());
+
+        return new RefreshTokenResponse(newAccessToken, "Bearer");
     }
 }

@@ -1,0 +1,130 @@
+package com.bankflow.security.jwt;
+
+import com.bankflow.config.JwtProperties;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.test.web.servlet.MockMvc;
+
+import java.time.Duration;
+
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.httpBasic;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+@SpringBootTest
+@AutoConfigureMockMvc
+public class JwtAuthenticationIntegrationTest {
+    @Autowired
+    private MockMvc mockMvc;
+
+    @Autowired
+    private JwtTokenService jwtTokenService;
+
+    @Autowired
+    private JwtProperties jwtProperties;
+
+    @Test
+    void protectedEndpoint_shouldReturn401_whenAuthenticationIsMissing() throws Exception {
+        mockMvc.perform(get("/security/me"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("UNAUTHORIZED"));
+    }
+
+    @Test
+    void protectedEndpoint_shouldReturn200_whenAccessTokenIsValid() throws Exception {
+        String token = jwtTokenService.generateAccessToken(123L, "nghia@example.com");
+
+        mockMvc.perform(get("/security/me")
+                        .header(
+                                "Authorization", "Bearer " + token
+                        )
+                )
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.authenticated").value(true))
+                .andExpect(jsonPath("$.name").value("123"));
+    }
+
+    @Test
+    void protectedEndpoint_shouldReturn401_whenUsingBasicAuthentication() throws Exception {
+        mockMvc.perform(get("/security/me")
+                        .with(
+                                httpBasic("bankflow", "123456")
+                        )
+                )
+                .andExpect(status().isUnauthorized())
+                .andExpect(
+                        jsonPath("$.code")
+                                .value("UNAUTHORIZED")
+                );
+    }
+
+    @Test
+    void protectedEndpoint_shouldReturn401_whenAccessTokenIsMalformed()
+            throws Exception {
+
+        mockMvc.perform(
+                        get("/security/me")
+                                .header(
+                                        "Authorization",
+                                        "Bearer not-a-valid-jwt"
+                                )
+                )
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("INVALID_TOKEN"));
+    }
+
+    @Test
+    void protectedEndpoint_shouldReturn401_whenRefreshTokenIsUsedAsAccessToken()
+            throws Exception {
+
+        String refreshToken =
+                jwtTokenService.generateRefreshToken(
+                        123L,
+                        "nghia@example.com"
+                );
+
+        mockMvc.perform(
+                        get("/security/me")
+                                .header(
+                                        "Authorization",
+                                        "Bearer " + refreshToken
+                                )
+                )
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("INVALID_TOKEN"));
+    }
+
+    @Test
+    void protectedEndpoint_shouldReturn401_whenAccessTokenIsExpired()
+            throws Exception {
+
+        JwtProperties expiredProperties =
+                new JwtProperties(
+                        jwtProperties.secret(),
+                        Duration.ofSeconds(-1),
+                        jwtProperties.refreshTokenExpiration()
+                );
+
+        JwtTokenService expiredTokenService =
+                new JwtTokenService(expiredProperties);
+
+        String expiredToken =
+                expiredTokenService.generateAccessToken(
+                        123L,
+                        "nghia@example.com"
+                );
+
+        mockMvc.perform(
+                        get("/security/me")
+                                .header(
+                                        "Authorization",
+                                        "Bearer " + expiredToken
+                                )
+                )
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("TOKEN_EXPIRED"));
+    }
+}
