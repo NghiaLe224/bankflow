@@ -2,6 +2,7 @@ package com.bankflow.common.exception;
 
 import com.bankflow.auth.exception.EmailAlreadyExistsException;
 import com.bankflow.auth.exception.InvalidCredentialsException;
+import com.bankflow.security.exception.ForbiddenOperationException;
 import com.bankflow.security.jwt.exception.InvalidJwtTokenException;
 import com.bankflow.security.jwt.exception.JwtTokenExpiredException;
 import org.springframework.http.HttpStatus;
@@ -123,6 +124,22 @@ public class GlobalExceptionHandler {
                 e.getMessage(),
                 LocalDateTime.now()
         ));
+    }
+
+    @ExceptionHandler(ForbiddenOperationException.class)
+    public ResponseEntity<ErrorResponse>
+    handleForbiddenOperation(
+            ForbiddenOperationException e
+    ) {
+        return ResponseEntity
+                .status(HttpStatus.FORBIDDEN)
+                .body(
+                        new ErrorResponse(
+                                "FORBIDDEN",
+                                e.getMessage(),
+                                LocalDateTime.now()
+                        )
+                );
     }
 
     @ExceptionHandler(InvalidCredentialsException.class)

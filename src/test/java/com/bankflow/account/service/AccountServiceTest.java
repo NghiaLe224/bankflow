@@ -7,6 +7,8 @@ import com.bankflow.account.enums.AccountStatus;
 import com.bankflow.account.repository.AccountRepository;
 import com.bankflow.common.exception.AccountNotFoundException;
 import com.bankflow.common.exception.UserNotFoundException;
+import com.bankflow.security.CurrentUserService;
+import com.bankflow.security.exception.ForbiddenOperationException;
 import com.bankflow.user.entity.UserEntity;
 import com.bankflow.user.repository.UserRepository;
 import org.junit.jupiter.api.Test;
@@ -15,6 +17,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.math.BigDecimal;
 import java.util.Optional;
@@ -24,6 +27,9 @@ import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 class AccountServiceTest {
+
+    @Mock
+    CurrentUserService currentUserService;
 
     @Mock
     private AccountRepository accountRepository;
@@ -151,4 +157,180 @@ class AccountServiceTest {
                 .save(any(AccountEntity.class));
     }
 
+    @Test
+    void getAccount_shouldReturnAccount_whenCurrentUserIsOwner() {
+        UserEntity owner = new UserEntity(
+                "Le Trong Nghia",
+                "nghia@example.com"
+        );
+
+        ReflectionTestUtils.setField(
+                owner,
+                "id",
+                10L
+        );
+
+        AccountEntity account = new AccountEntity(
+                owner,
+                "ACC100",
+                new BigDecimal("5000000"),
+                AccountStatus.ACTIVE
+        );
+
+        ReflectionTestUtils.setField(
+                account,
+                "id",
+                100L
+        );
+
+        when(accountRepository.findById(100L))
+                .thenReturn(Optional.of(account));
+
+        when(currentUserService.getCurrentUserId())
+                .thenReturn(10L);
+
+        AccountResponse response =
+                accountService.getAccount(100L);
+
+        assertEquals(
+                100L,
+                response.getId()
+        );
+
+        verify(accountRepository)
+                .findById(100L);
+
+        verify(currentUserService)
+                .getCurrentUserId();
+    }
+
+    @Test
+    void getAccount_shouldThrowForbiddenOperationException_whenCurrentUserIsNotOwner() {
+        UserEntity owner = new UserEntity(
+                "Another User",
+                "owner@example.com"
+        );
+
+        ReflectionTestUtils.setField(
+                owner,
+                "id",
+                20L
+        );
+
+        AccountEntity account = new AccountEntity(
+                owner,
+                "ACC200",
+                new BigDecimal("3000000"),
+                AccountStatus.ACTIVE
+        );
+
+        ReflectionTestUtils.setField(
+                account,
+                "id",
+                200L
+        );
+
+        when(accountRepository.findById(200L))
+                .thenReturn(Optional.of(account));
+
+        when(currentUserService.getCurrentUserId())
+                .thenReturn(10L);
+
+        assertThrows(
+                ForbiddenOperationException.class,
+                () -> accountService.getAccount(200L)
+        );
+
+        verify(accountRepository)
+                .findById(200L);
+
+        verify(currentUserService)
+                .getCurrentUserId();
+    }
+
+    @Test
+    void blockAccount_shouldBlockAccount_whenCurrentUserIsOwner() {
+        UserEntity owner = new UserEntity(
+                "Le Trong Nghia",
+                "nghia@example.com"
+        );
+
+        ReflectionTestUtils.setField(
+                owner,
+                "id",
+                10L
+        );
+
+        AccountEntity account = new AccountEntity(
+                owner,
+                "ACC300",
+                new BigDecimal("5000000"),
+                AccountStatus.ACTIVE
+        );
+
+        ReflectionTestUtils.setField(
+                account,
+                "id",
+                300L
+        );
+
+        when(accountRepository.findById(300L))
+                .thenReturn(Optional.of(account));
+
+        when(currentUserService.getCurrentUserId())
+                .thenReturn(10L);
+
+        accountService.blockAccount(300L);
+
+        assertEquals(
+                AccountStatus.BLOCKED,
+                account.getStatus()
+        );
+
+        verify(currentUserService)
+                .getCurrentUserId();
+    }
+
+    @Test
+    void blockAccount_shouldThrowForbiddenOperationException_whenCurrentUserIsNotOwner() {
+        UserEntity owner = new UserEntity(
+                "Another User",
+                "owner@example.com"
+        );
+
+        ReflectionTestUtils.setField(
+                owner,
+                "id",
+                20L
+        );
+
+        AccountEntity account = new AccountEntity(
+                owner,
+                "ACC400",
+                new BigDecimal("3000000"),
+                AccountStatus.ACTIVE
+        );
+
+        ReflectionTestUtils.setField(
+                account,
+                "id",
+                400L
+        );
+
+        when(accountRepository.findById(400L))
+                .thenReturn(Optional.of(account));
+
+        when(currentUserService.getCurrentUserId())
+                .thenReturn(10L);
+
+        assertThrows(
+                ForbiddenOperationException.class,
+                () -> accountService.blockAccount(400L)
+        );
+
+        assertEquals(
+                AccountStatus.ACTIVE,
+                account.getStatus()
+        );
+    }
 }

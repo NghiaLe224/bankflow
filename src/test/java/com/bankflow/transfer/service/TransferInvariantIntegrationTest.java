@@ -7,6 +7,7 @@ import com.bankflow.common.exception.AccountInactiveException;
 import com.bankflow.common.exception.InsufficientFundsException;
 import com.bankflow.common.exception.InvalidTransferException;
 import com.bankflow.ledger.repository.LedgerEntryRepository;
+import com.bankflow.security.CurrentUserService;
 import com.bankflow.transfer.dto.CreateTransferRequest;
 import com.bankflow.transfer.enums.Currency;
 import com.bankflow.transfer.repository.TransferRepository;
@@ -15,6 +16,7 @@ import com.bankflow.user.repository.UserRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 import java.math.BigDecimal;
 import java.util.List;
@@ -22,6 +24,7 @@ import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.Mockito.when;
 
 @SpringBootTest
 class TransferInvariantIntegrationTest {
@@ -40,6 +43,9 @@ class TransferInvariantIntegrationTest {
 
     @Autowired
     private UserRepository userRepository;
+
+    @MockitoBean
+    private CurrentUserService currentUserService;
 
     @Test
     void createTransfer_shouldReject_whenSenderIsInactive() {
@@ -73,6 +79,9 @@ class TransferInvariantIntegrationTest {
 
         AccountEntity sender = accounts.get(0);
         AccountEntity receiver = accounts.get(1);
+
+        when(currentUserService.getCurrentUserId())
+                .thenReturn(user.getId());
 
         try {
 
@@ -160,6 +169,9 @@ class TransferInvariantIntegrationTest {
         AccountEntity sender = accounts.get(0);
         AccountEntity receiver = accounts.get(1);
 
+        when(currentUserService.getCurrentUserId())
+                .thenReturn(user.getId());
+
         try {
             long transferCountBefore = transferRepository.count();
             long ledgerCountBefore = ledgerEntryRepository.count();
@@ -232,6 +244,9 @@ class TransferInvariantIntegrationTest {
                         AccountStatus.ACTIVE
                 )
         );
+
+        when(currentUserService.getCurrentUserId())
+                .thenReturn(user.getId());
 
         try {
             long transferCountBefore = transferRepository.count();
@@ -306,6 +321,9 @@ class TransferInvariantIntegrationTest {
 
         AccountEntity sender = accounts.get(0);
         AccountEntity receiver = accounts.get(1);
+
+        when(currentUserService.getCurrentUserId())
+                .thenReturn(user.getId());
 
         try {
             long transferCountBefore = transferRepository.count();
@@ -474,6 +492,9 @@ class TransferInvariantIntegrationTest {
 
         AccountEntity sender = accounts.get(0);
         AccountEntity receiver = accounts.get(1);
+
+        when(currentUserService.getCurrentUserId())
+                .thenReturn(user.getId());
 
         try {
             long transferCountBefore = transferRepository.count();

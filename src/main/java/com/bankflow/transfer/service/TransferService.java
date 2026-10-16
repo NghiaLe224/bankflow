@@ -6,6 +6,8 @@ import com.bankflow.account.repository.AccountRepository;
 import com.bankflow.common.dto.PageResponse;
 import com.bankflow.common.exception.*;
 import com.bankflow.ledger.service.LedgerService;
+import com.bankflow.security.CurrentUserService;
+import com.bankflow.security.exception.ForbiddenOperationException;
 import com.bankflow.transfer.dto.CreateTransferRequest;
 import com.bankflow.transfer.dto.TransferResponse;
 import com.bankflow.transfer.entity.TransferEntity;
@@ -31,18 +33,21 @@ public class TransferService {
     private final AccountRepository accountRepository;
     private final TransferMapper transferMapper;
     private final LedgerService ledgerService;
+    private final CurrentUserService currentUserService;
 
     public TransferService(TransferRepository transferRepository,
                            EntityManager entityManager,
                            AccountRepository accountRepository,
                            TransferMapper transferMapper,
-                           LedgerService ledgerService
+                           LedgerService ledgerService,
+                           CurrentUserService currentUserService
     ) {
         this.transferRepository = transferRepository;
         this.entityManager = entityManager;
         this.accountRepository = accountRepository;
         this.transferMapper = transferMapper;
         this.ledgerService = ledgerService;
+        this.currentUserService = currentUserService;
     }
 
     @Transactional
@@ -60,6 +65,11 @@ public class TransferService {
 
         AccountEntity fromAccount = accountRepository.findById(request.fromAccountId())
                 .orElseThrow(() -> new AccountNotFoundException(request.fromAccountId()));
+
+        Long currentUserId = currentUserService.getCurrentUserId();
+        if (!currentUserId.equals(fromAccount.getUser().getId())) {
+            throw new ForbiddenOperationException();
+        }
 
         AccountEntity toAccount = accountRepository.findById(request.toAccountId())
                 .orElseThrow(() -> new AccountNotFoundException(request.toAccountId()));
@@ -99,6 +109,14 @@ public class TransferService {
         TransferEntity transfer = transferRepository.findById(id)
                 .orElseThrow(() -> new TransferNotFoundException(id));
 
+        Long currentUserId = currentUserService.getCurrentUserId();
+        Long fromOwnerId = transfer.getFromAccount().getUser().getId();
+        Long toOwnerId = transfer.getToAccount().getUser().getId();
+
+        if (!currentUserId.equals(fromOwnerId) && !currentUserId.equals(toOwnerId)) {
+            throw new ForbiddenOperationException();
+        }
+
         return transferMapper.toResponse(transfer);
     }
 
@@ -125,7 +143,9 @@ public class TransferService {
                 "id"
         );
 
-        Specification<TransferEntity> spec = Specification.unrestricted();
+        Long currentUserId = currentUserService.getCurrentUserId();
+
+        Specification<TransferEntity> spec = TransferSpecification.involvesUser(currentUserId);
 
         if (status != null) {
             spec = spec.and(TransferSpecification.hasStatus(status));

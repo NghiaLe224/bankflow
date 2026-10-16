@@ -9,6 +9,7 @@ import com.bankflow.common.exception.TransferNotFoundException;
 import com.bankflow.ledger.entity.LedgerEntryEntity;
 import com.bankflow.ledger.enums.LedgerEntryType;
 import com.bankflow.ledger.repository.LedgerEntryRepository;
+import com.bankflow.security.CurrentUserService;
 import com.bankflow.transfer.dto.CreateTransferRequest;
 import com.bankflow.transfer.dto.TransferResponse;
 import com.bankflow.transfer.entity.TransferEntity;
@@ -20,6 +21,7 @@ import com.bankflow.user.repository.UserRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 import java.math.BigDecimal;
 import java.util.List;
@@ -27,6 +29,7 @@ import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.Mockito.when;
 
 @SpringBootTest
 class TransferIntegrationTest {
@@ -45,6 +48,9 @@ class TransferIntegrationTest {
 
     @Autowired
     private UserRepository userRepository;
+
+    @MockitoBean
+    private CurrentUserService currentUserService;
 
     @Test
     void createTransfer_shouldPersistAtomicTransfer_whenRequestIsValid() {
@@ -95,6 +101,9 @@ class TransferIntegrationTest {
         );
 
         Long transferId = null;
+
+        when(currentUserService.getCurrentUserId())
+                .thenReturn(savedUser.getId());
 
         try {
             // Act
@@ -234,6 +243,9 @@ class TransferIntegrationTest {
 
         long ledgerCountBefore =
                 ledgerEntryRepository.count();
+
+        when(currentUserService.getCurrentUserId())
+                .thenReturn(savedUser.getId());
 
         try {
             // Act + Assert exception

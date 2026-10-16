@@ -3,6 +3,7 @@ package com.bankflow.security.jwt;
 import com.bankflow.config.JwtProperties;
 import com.bankflow.security.jwt.exception.InvalidJwtTokenException;
 import com.bankflow.security.jwt.exception.JwtTokenExpiredException;
+import com.bankflow.user.enums.UserRole;
 import io.jsonwebtoken.Claims;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -36,7 +37,7 @@ public class JwtTokenServiceTest {
 
     @Test
     void accessToken_shouldContainExpectedClaims() {
-        String token = jwtTokenService.generateAccessToken(123L, "nghia@example.com");
+        String token = jwtTokenService.generateAccessToken(123L, "nghia@example.com", UserRole.USER);
         Claims claims = jwtTokenService.parseAccessToken(token);
 
         assertEquals("123", claims.getSubject());
@@ -44,6 +45,10 @@ public class JwtTokenServiceTest {
         assertEquals("access", claims.get("token_type", String.class));
         assertNotNull(claims.getIssuedAt());
         assertNotNull(claims.getExpiration());
+        assertEquals(
+                "USER",
+                claims.get("role", String.class)
+        );
     }
 
     @Test
@@ -84,7 +89,8 @@ public class JwtTokenServiceTest {
     void parseAccessToken_shouldFail_whenPayloadIsTampered() {
         String token = jwtTokenService.generateAccessToken(
                 123L,
-                "nghia@example.com"
+                "nghia@example.com",
+                UserRole.USER
         );
 
         String[] parts = token.split("\\.");
@@ -133,7 +139,8 @@ public class JwtTokenServiceTest {
         String expiredToken =
                 expiredJwtTokenService.generateAccessToken(
                         123L,
-                        "nghia@example.com"
+                        "nghia@example.com",
+                        UserRole.USER
                 );
 
         assertThrows(

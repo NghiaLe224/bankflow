@@ -1,6 +1,7 @@
 package com.bankflow.security.jwt;
 
 import com.bankflow.config.JwtProperties;
+import com.bankflow.user.enums.UserRole;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -35,7 +36,7 @@ public class JwtAuthenticationIntegrationTest {
 
     @Test
     void protectedEndpoint_shouldReturn200_whenAccessTokenIsValid() throws Exception {
-        String token = jwtTokenService.generateAccessToken(123L, "nghia@example.com");
+        String token = jwtTokenService.generateAccessToken(123L, "nghia@example.com", UserRole.USER);
 
         mockMvc.perform(get("/security/me")
                         .header(
@@ -44,7 +45,11 @@ public class JwtAuthenticationIntegrationTest {
                 )
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.authenticated").value(true))
-                .andExpect(jsonPath("$.name").value("123"));
+                .andExpect(jsonPath("$.name").value("123"))
+                .andExpect(
+                        jsonPath("$.authorities[0]")
+                                .value("ROLE_USER")
+                );
     }
 
     @Test
@@ -114,7 +119,8 @@ public class JwtAuthenticationIntegrationTest {
         String expiredToken =
                 expiredTokenService.generateAccessToken(
                         123L,
-                        "nghia@example.com"
+                        "nghia@example.com",
+                        UserRole.USER
                 );
 
         mockMvc.perform(
@@ -126,5 +132,18 @@ public class JwtAuthenticationIntegrationTest {
                 )
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.code").value("TOKEN_EXPIRED"));
+    }
+
+    @Test
+    void protectedEndpoint_shouldContainAdminAuthority_whenAccessTokenHasAdminRole()
+            throws Exception {
+        String token = jwtTokenService.generateAccessToken(999L, "admin@example.com", UserRole.ADMIN);
+
+        mockMvc.perform(get("/security/me")
+                .header("Authorization", "Bearer " + token)
+        )
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.name").value("999"))
+                .andExpect(jsonPath("$.authorities[0]").value("ROLE_ADMIN"));
     }
 }

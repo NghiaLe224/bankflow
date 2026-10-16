@@ -8,12 +8,10 @@ import java.time.LocalDateTime;
 
 public class TransferSpecification {
     public static Specification<TransferEntity> hasStatus(TransferStatus status) {
-        return (root, query, cb) -> {
-            return cb.equal(
-                    root.get("status"),
-                    status
-            );
-        };
+        return (root, query, cb) -> cb.equal(
+                root.get("status"),
+                status
+        );
     }
 
     public static Specification<TransferEntity> hasAccount(Long accountId) {
@@ -25,14 +23,20 @@ public class TransferSpecification {
     }
 
     public static Specification<TransferEntity> createdAtFrom(LocalDateTime from) {
-        return (root, query, criteriaBuilder) -> {
-            return criteriaBuilder.greaterThanOrEqualTo(root.get("createdAt"), from);
-        };
+        return (root, query, criteriaBuilder) ->
+                criteriaBuilder.greaterThanOrEqualTo(root.get("createdAt"), from);
     }
 
     public static Specification<TransferEntity> createdAtTo(LocalDateTime to) {
+        return (root, query, criteriaBuilder) ->
+                criteriaBuilder.lessThanOrEqualTo(root.get("createdAt"), to);
+    }
+
+    public static Specification<TransferEntity> involvesUser(Long userId) {
         return (root, query, criteriaBuilder) -> {
-            return criteriaBuilder.lessThanOrEqualTo(root.get("createdAt"), to);
+            var fromUser = criteriaBuilder.equal(root.get("fromAccount").get("user").get("id"), userId);
+            var toUser = criteriaBuilder.equal(root.get("toAccount").get("user").get("id"), userId);
+            return criteriaBuilder.or(fromUser, toUser);
         };
     }
 }

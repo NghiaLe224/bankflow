@@ -1,6 +1,7 @@
 package com.bankflow.user.entity;
 
 import com.bankflow.account.entity.AccountEntity;
+import com.bankflow.user.enums.UserRole;
 import jakarta.persistence.*;
 
 import java.util.ArrayList;
@@ -25,6 +26,10 @@ public class UserEntity {
 
     @Column(name = "password_hash", length = 255)
     private String passwordHash;
+
+    @Column(name = "role", nullable = false, length = 20)
+    @Enumerated(EnumType.STRING)
+    private UserRole role = UserRole.USER;
 
     protected UserEntity() {
     }
@@ -63,5 +68,9 @@ public class UserEntity {
 
     public String getPasswordHash() {
         return passwordHash;
+    }
+
+    public UserRole getRole() {
+        return role;
     }
 }

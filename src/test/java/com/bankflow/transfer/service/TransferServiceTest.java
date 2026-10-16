@@ -7,6 +7,8 @@ import com.bankflow.common.exception.AccountNotFoundException;
 import com.bankflow.common.exception.InvalidTransferException;
 import com.bankflow.common.exception.TransferNotFoundException;
 import com.bankflow.ledger.service.LedgerService;
+import com.bankflow.security.CurrentUserService;
+import com.bankflow.security.exception.ForbiddenOperationException;
 import com.bankflow.transfer.dto.CreateTransferRequest;
 import com.bankflow.transfer.dto.TransferResponse;
 import com.bankflow.transfer.entity.TransferEntity;
@@ -22,6 +24,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -49,12 +52,50 @@ class TransferServiceTest {
     @Mock
     private LedgerService ledgerService;
 
+    @Mock
+    private CurrentUserService currentUserService;
+
     @InjectMocks
     private TransferService transferService;
 
     @Test
     void createTransfer_shouldCompleteTransferAndCreateLedger_whenRequestIsValid() {
-        UserEntity user = mock(UserEntity.class);
+        UserEntity owner = new UserEntity(
+                "Le Trong Nghia",
+                "nghia@example.com"
+        );
+
+        ReflectionTestUtils.setField(
+                owner,
+                "id",
+                10L
+        );
+
+        UserEntity recipient = new UserEntity(
+                "Another User",
+                "recipient@example.com"
+        );
+
+        ReflectionTestUtils.setField(
+                recipient,
+                "id",
+                20L
+        );
+
+        AccountEntity fromAccount = new AccountEntity(
+                owner,
+                "123",
+                new BigDecimal("5000000"),
+                AccountStatus.ACTIVE
+        );
+
+        AccountEntity toAccount = new AccountEntity(
+                recipient,
+                "456",
+                new BigDecimal("5000000"),
+                AccountStatus.ACTIVE
+        );
+
         CreateTransferRequest request = new CreateTransferRequest(
                 1L,
                 2L,
@@ -62,24 +103,12 @@ class TransferServiceTest {
                 Currency.VND
         );
 
-        AccountEntity fromAccount = new AccountEntity(
-                user,
-                "123",
-                new BigDecimal("5000000"),
-                AccountStatus.ACTIVE
-        );
-
-        AccountEntity toAccount = new AccountEntity(
-                user,
-                "456",
-                new BigDecimal("5000000"),
-                AccountStatus.ACTIVE
-        );
-
         when(accountRepository.findById(request.fromAccountId())).thenReturn(Optional.of(fromAccount));
         when(accountRepository.findById(request.toAccountId())).thenReturn(Optional.of(toAccount));
         when(transferRepository.saveAndFlush(any(TransferEntity.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
+        when(currentUserService.getCurrentUserId())
+                .thenReturn(10L);
 
         TransferResponse expectedResponse = new TransferResponse(
                 10L,
@@ -137,6 +166,8 @@ class TransferServiceTest {
         verify(transferMapper).toResponse(transfer);
 
         assertSame(expectedResponse, result);
+        verify(currentUserService)
+                .getCurrentUserId();
     }
 
     @Test
@@ -210,7 +241,18 @@ class TransferServiceTest {
                 Currency.VND
         );
 
-        AccountEntity fromAccount = mock(AccountEntity.class);
+        UserEntity owner = new UserEntity("Le Trong Nghia", "nghia@example.com");
+
+        ReflectionTestUtils.setField(owner, "id", 1L);
+
+        AccountEntity fromAccount = new AccountEntity(
+                owner,
+                "123456",
+                new BigDecimal("50000000"),
+                AccountStatus.ACTIVE
+        );
+
+        when(currentUserService.getCurrentUserId()).thenReturn(1L);
 
         when(accountRepository.findById(1L))
                 .thenReturn(Optional.of(fromAccount));
@@ -232,43 +274,6 @@ class TransferServiceTest {
 
         verifyNoInteractions(entityManager);
         verifyNoInteractions(transferMapper);
-    }
-
-    @Test
-    void findTransferById_shouldReturnTransferResponse_whenTransferExists() {
-        // Arrange
-        Long transferId = 10L;
-
-        TransferEntity transfer = mock(TransferEntity.class);
-
-        TransferResponse expectedResponse = new TransferResponse(
-                transferId,
-                1L,
-                2L,
-                new BigDecimal("500000"),
-                Currency.VND,
-                TransferStatus.PENDING,
-                LocalDateTime.of(2026, 10, 1, 18, 30)
-        );
-
-        when(transferRepository.findById(transferId))
-                .thenReturn(Optional.of(transfer));
-
-        when(transferMapper.toResponse(transfer))
-                .thenReturn(expectedResponse);
-
-        // Act
-        TransferResponse actualResponse =
-                transferService.findTransferById(transferId);
-
-        // Assert
-        assertSame(expectedResponse, actualResponse);
-
-        verify(transferRepository).findById(transferId);
-        verify(transferMapper).toResponse(transfer);
-
-        verifyNoInteractions(accountRepository);
-        verifyNoInteractions(entityManager);
     }
 
     @Test
@@ -297,6 +302,199 @@ class TransferServiceTest {
         verifyNoInteractions(transferMapper);
         verifyNoInteractions(accountRepository);
         verifyNoInteractions(entityManager);
+    }
+
+    @Test
+    void createTransfer_shouldThrowForbiddenOperationException_whenCurrentUserDoesNotOwnFromAccount() {
+        UserEntity owner = new UserEntity("Le Trong Nghia", "nghia@example.com");
+        ReflectionTestUtils.setField(owner, "id", 10L);
+        AccountEntity fromAccount = new AccountEntity(
+                owner,
+                "12345678",
+                new BigDecimal("5000000"),
+                AccountStatus.ACTIVE
+        );
+        CreateTransferRequest request = new CreateTransferRequest(
+                30L,
+                50L,
+                new BigDecimal("100000"),
+                Currency.VND
+        );
+        when(currentUserService.getCurrentUserId()).thenReturn(20L);
+        when(accountRepository.findById(30L)).thenReturn(Optional.of(fromAccount));
+
+        assertThrows(ForbiddenOperationException.class, () -> transferService.createTransfer(request));
+
+        assertEquals(
+                0,
+                new BigDecimal("5000000")
+                        .compareTo(fromAccount.getBalance())
+        );
+
+        verify(accountRepository, never())
+                .findById(50L);
+
+        verify(transferRepository, never())
+                .saveAndFlush(any(TransferEntity.class));
+
+        verifyNoInteractions(ledgerService);
+    }
+
+    @Test
+    void findTransferById_shouldReturnTransfer_whenCurrentUserIsRecipient() {
+        UserEntity sender = new UserEntity(
+                "Sender",
+                "sender@example.com"
+        );
+        ReflectionTestUtils.setField(sender, "id", 10L);
+
+        UserEntity recipient = new UserEntity(
+                "Recipient",
+                "recipient@example.com"
+        );
+        ReflectionTestUtils.setField(recipient, "id", 20L);
+
+        AccountEntity fromAccount = new AccountEntity(
+                sender,
+                "FROM-001",
+                new BigDecimal("5000000"),
+                AccountStatus.ACTIVE
+        );
+
+        AccountEntity toAccount = new AccountEntity(
+                recipient,
+                "TO-001",
+                new BigDecimal("3000000"),
+                AccountStatus.ACTIVE
+        );
+
+        TransferEntity transfer = new TransferEntity(
+                fromAccount,
+                toAccount,
+                new BigDecimal("500000"),
+                Currency.VND,
+                TransferStatus.COMPLETED
+        );
+
+        TransferResponse expectedResponse = mock(TransferResponse.class);
+
+        when(transferRepository.findById(100L))
+                .thenReturn(Optional.of(transfer));
+
+        when(currentUserService.getCurrentUserId())
+                .thenReturn(20L);
+
+        when(transferMapper.toResponse(transfer))
+                .thenReturn(expectedResponse);
+
+        TransferResponse result =
+                transferService.findTransferById(100L);
+
+        assertSame(expectedResponse, result);
+    }
+
+    @Test
+    void findTransferById_shouldReturnTransfer_whenCurrentUserIsSender() {
+        UserEntity sender = new UserEntity(
+                "Sender",
+                "sender@example.com"
+        );
+        ReflectionTestUtils.setField(sender, "id", 10L);
+
+        UserEntity recipient = new UserEntity(
+                "Recipient",
+                "recipient@example.com"
+        );
+        ReflectionTestUtils.setField(recipient, "id", 20L);
+
+        AccountEntity fromAccount = new AccountEntity(
+                sender,
+                "FROM-001",
+                new BigDecimal("5000000"),
+                AccountStatus.ACTIVE
+        );
+
+        AccountEntity toAccount = new AccountEntity(
+                recipient,
+                "TO-001",
+                new BigDecimal("3000000"),
+                AccountStatus.ACTIVE
+        );
+
+        TransferEntity transfer = new TransferEntity(
+                fromAccount,
+                toAccount,
+                new BigDecimal("500000"),
+                Currency.VND,
+                TransferStatus.COMPLETED
+        );
+
+        TransferResponse expectedResponse = mock(TransferResponse.class);
+
+        when(transferRepository.findById(100L))
+                .thenReturn(Optional.of(transfer));
+
+        when(currentUserService.getCurrentUserId())
+                .thenReturn(10L);
+
+        when(transferMapper.toResponse(transfer))
+                .thenReturn(expectedResponse);
+
+        TransferResponse result =
+                transferService.findTransferById(100L);
+
+        assertSame(expectedResponse, result);
+    }
+
+    @Test
+    void findTransferById_shouldThrowForbiddenOperationException_whenCurrentUserIsUnrelated() {
+        UserEntity sender = new UserEntity(
+                "Sender",
+                "sender@example.com"
+        );
+        ReflectionTestUtils.setField(sender, "id", 10L);
+
+        UserEntity recipient = new UserEntity(
+                "Recipient",
+                "recipient@example.com"
+        );
+        ReflectionTestUtils.setField(recipient, "id", 20L);
+
+        AccountEntity fromAccount = new AccountEntity(
+                sender,
+                "FROM-001",
+                new BigDecimal("5000000"),
+                AccountStatus.ACTIVE
+        );
+
+        AccountEntity toAccount = new AccountEntity(
+                recipient,
+                "TO-001",
+                new BigDecimal("3000000"),
+                AccountStatus.ACTIVE
+        );
+
+        TransferEntity transfer = new TransferEntity(
+                fromAccount,
+                toAccount,
+                new BigDecimal("500000"),
+                Currency.VND,
+                TransferStatus.COMPLETED
+        );
+
+        when(transferRepository.findById(100L))
+                .thenReturn(Optional.of(transfer));
+
+        when(currentUserService.getCurrentUserId())
+                .thenReturn(30L);
+
+        assertThrows(
+                ForbiddenOperationException.class,
+                () -> transferService.findTransferById(100L)
+        );
+
+        verify(transferMapper, never())
+                .toResponse(any(TransferEntity.class));
     }
 
 }

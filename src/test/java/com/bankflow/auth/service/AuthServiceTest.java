@@ -8,6 +8,7 @@ import com.bankflow.auth.exception.EmailAlreadyExistsException;
 import com.bankflow.auth.exception.InvalidCredentialsException;
 import com.bankflow.security.jwt.JwtTokenService;
 import com.bankflow.user.entity.UserEntity;
+import com.bankflow.user.enums.UserRole;
 import com.bankflow.user.repository.UserRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -105,7 +106,8 @@ public class AuthServiceTest {
         ReflectionTestUtils.setField(user, "id", 123L);
         when(jwtTokenService.generateAccessToken(
                 123L,
-                "nghia@example.com"
+                "nghia@example.com",
+                UserRole.USER
         )).thenReturn("fake-access-token");
 
         when(jwtTokenService.generateRefreshToken(
@@ -127,7 +129,7 @@ public class AuthServiceTest {
         assertEquals("fake-refresh-token", response.refreshToken());
         assertEquals("Bearer", response.tokenType());
         verify(jwtTokenService)
-                .generateAccessToken(123L, "nghia@example.com");
+                .generateAccessToken(123L, "nghia@example.com", UserRole.USER);
 
         verify(jwtTokenService)
                 .generateRefreshToken(123L, "nghia@example.com");
@@ -204,6 +206,35 @@ public class AuthServiceTest {
         verify(userRepository).findByEmail("legacy@example.com");
         verifyNoInteractions(passwordEncoder);
         verifyNoInteractions(jwtTokenService);
+    }
+
+    @Test
+    void register_shouldCreateUserWithUserRole() {
+        when(userRepository.existsByEmail("newuser@example.com"))
+                .thenReturn(false);
+        when(passwordEncoder.encode("12345678"))
+                .thenReturn("hashed-password");
+        when(userRepository.save(any(UserEntity.class)))
+                .thenAnswer(invocation -> {
+                    UserEntity userToCreate = invocation.getArgument(0);
+                    ReflectionTestUtils.setField(userToCreate, "id", 10L);
+                    return userToCreate;
+                });
+        RegisterRequest request = new RegisterRequest(
+                "New User", "newuser@example.com", "12345678"
+        );
+
+        authService.register(request);
+
+        ArgumentCaptor<UserEntity> captor = ArgumentCaptor.forClass(UserEntity.class);
+        verify(userRepository)
+                .save(captor.capture());
+        UserEntity savedUser = captor.getValue();
+        assertEquals(
+                UserRole.USER,
+                savedUser.getRole()
+        );
+
     }
 
 }

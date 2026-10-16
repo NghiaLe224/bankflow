@@ -7,6 +7,8 @@ import com.bankflow.account.enums.AccountStatus;
 import com.bankflow.account.repository.AccountRepository;
 import com.bankflow.common.exception.AccountNotFoundException;
 import com.bankflow.common.exception.UserNotFoundException;
+import com.bankflow.security.CurrentUserService;
+import com.bankflow.security.exception.ForbiddenOperationException;
 import com.bankflow.user.entity.UserEntity;
 import com.bankflow.user.repository.UserRepository;
 import jakarta.transaction.Transactional;
@@ -16,12 +18,18 @@ import java.util.List;
 
 @Service
 public class AccountService {
+    private final CurrentUserService currentUserService;
     private final AccountRepository accountRepository;
     private final UserRepository userRepository;
 
-    public AccountService(AccountRepository accountRepository, UserRepository userRepository) {
+    public AccountService(
+            AccountRepository accountRepository,
+            UserRepository userRepository,
+            CurrentUserService currentUserService
+    ) {
         this.accountRepository = accountRepository;
         this.userRepository = userRepository;
+        this.currentUserService = currentUserService;
     }
 
     @Transactional
@@ -52,6 +60,16 @@ public class AccountService {
         AccountEntity account = accountRepository.findById(id)
                 .orElseThrow(() -> new AccountNotFoundException(id));
 
+        Long currentUserId =
+                currentUserService.getCurrentUserId();
+
+        Long ownerId =
+                account.getUser().getId();
+
+        if (!currentUserId.equals(ownerId)) {
+            throw new ForbiddenOperationException();
+        }
+
         account.block();
     }
 
@@ -59,6 +77,13 @@ public class AccountService {
     public AccountResponse getAccount(Long id) {
         AccountEntity account = accountRepository.findById(id)
                 .orElseThrow(() -> new AccountNotFoundException(id));
+
+        Long currentUserId = currentUserService.getCurrentUserId();
+        Long ownerId = account.getUser().getId();
+
+        if (!currentUserId.equals(ownerId)) {
+            throw new ForbiddenOperationException();
+        }
 
         return new AccountResponse(
                 account.getId(),

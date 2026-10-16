@@ -3,6 +3,7 @@ package com.bankflow.security.jwt;
 import com.bankflow.config.JwtProperties;
 import com.bankflow.security.jwt.exception.InvalidJwtTokenException;
 import com.bankflow.security.jwt.exception.JwtTokenExpiredException;
+import com.bankflow.user.enums.UserRole;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.ExpiredJwtException;
 import io.jsonwebtoken.JwtException;
@@ -29,12 +30,13 @@ public class JwtTokenService {
                 Keys.hmacShaKeyFor(keyBytes);
     }
 
-    public String generateAccessToken(Long userId, String email) {
+    public String generateAccessToken(Long userId, String email, UserRole role) {
         Instant now = Instant.now();
         return Jwts.builder()
                 .subject(userId.toString())
                 .claim("email", email)
                 .claim("token_type", "access")
+                .claim("role", role.name())
                 .issuedAt(Date.from(now))
                 .expiration(Date.from(now.plus(jwtProperties.accessTokenExpiration())))
                 .signWith(signingKey)
@@ -70,6 +72,18 @@ public class JwtTokenService {
 
     public Claims parseAccessToken(String token) {
         Claims claims = parseClaims(token);
+
+        String role = claims.get("role", String.class);
+
+        if (role == null || role.isBlank()) {
+            throw new InvalidJwtTokenException();
+        }
+
+        try {
+            UserRole.valueOf(role);
+        } catch (IllegalArgumentException e) {
+            throw new InvalidJwtTokenException();
+        }
 
         validateRequiredClaims(claims);
 

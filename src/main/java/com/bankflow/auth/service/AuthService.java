@@ -59,7 +59,7 @@ public class AuthService {
         if (user.getPasswordHash() == null || !passwordEncoder.matches(request.password(), user.getPasswordHash())) {
             throw new InvalidCredentialsException();
         }
-        String accessToken = jwtTokenService.generateAccessToken(user.getId(), user.getEmail());
+        String accessToken = jwtTokenService.generateAccessToken(user.getId(), user.getEmail(), user.getRole());
         String refreshToken = jwtTokenService.generateRefreshToken(user.getId(), user.getEmail());
         return new LoginResponse(user.getId(), user.getFullName(), user.getEmail(), accessToken, refreshToken, "Bearer");
     }
@@ -77,7 +77,7 @@ public class AuthService {
         UserEntity user = userRepository.findById(id)
                 .orElseThrow(InvalidJwtTokenException::new);
 
-        String newAccessToken = jwtTokenService.generateAccessToken(user.getId(), user.getEmail());
+        String newAccessToken = jwtTokenService.generateAccessToken(user.getId(), user.getEmail(), user.getRole());
 
         return new RefreshTokenResponse(newAccessToken, "Bearer");
     }
