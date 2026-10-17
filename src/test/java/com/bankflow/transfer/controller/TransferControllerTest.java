@@ -2,6 +2,7 @@ package com.bankflow.transfer.controller;
 
 import com.bankflow.common.dto.PageResponse;
 import com.bankflow.common.exception.TransferNotFoundException;
+import com.bankflow.security.exception.ForbiddenOperationException;
 import com.bankflow.transfer.dto.CreateTransferRequest;
 import com.bankflow.transfer.dto.TransferResponse;
 import com.bankflow.transfer.enums.Currency;
@@ -165,6 +166,16 @@ public class TransferControllerTest {
                 .andExpect(jsonPath("$.amount").value(500000.00))
                 .andExpect(jsonPath("$.currency").value("VND"))
                 .andExpect(jsonPath("$.status").value("COMPLETED"));
+    }
+
+    @Test
+    void getTransferById_shouldReturn403_whenServiceRejectsAuthorization() throws Exception {
+        when(transferService.findTransferById(100L))
+                .thenThrow(new ForbiddenOperationException());
+
+        mockMvc.perform(get("/transfers/{id}", 100L))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("FORBIDDEN"));
     }
 
 }

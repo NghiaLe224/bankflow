@@ -1,5 +1,6 @@
 package com.bankflow.security.controller;
 
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -28,4 +29,14 @@ public class SecurityDebugController {
         return "public";
     }
 
+    @GetMapping("/admin")
+    public String admin() {
+        return "admin-secret";
+    }
+
+    @GetMapping("/method-admin")
+    @PreAuthorize("hasRole('ADMIN')")
+    public String methodAdmin() {
+        return "method-admin-secret";
+    }
 }

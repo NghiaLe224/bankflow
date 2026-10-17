@@ -1,5 +1,6 @@
 package com.bankflow.security.config;
 
+import com.bankflow.security.RestAccessDeniedHandler;
 import com.bankflow.security.RestAuthenticationEntryPoint;
 import com.bankflow.security.jwt.JwtAuthenticationFilter;
 import com.bankflow.security.jwt.JwtTokenService;
@@ -7,6 +8,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.config.Customizer;
+import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
@@ -22,6 +24,7 @@ import tools.jackson.databind.ObjectMapper;
 import java.util.List;
 
 @Configuration
+@EnableMethodSecurity
 public class SecurityConfig {
 
     @Bean
@@ -29,7 +32,8 @@ public class SecurityConfig {
             HttpSecurity http,
             JwtTokenService jwtTokenService,
             ObjectMapper objectMapper,
-            RestAuthenticationEntryPoint restAuthenticationEntryPoint
+            RestAuthenticationEntryPoint restAuthenticationEntryPoint,
+            RestAccessDeniedHandler restAccessDeniedHandler
     ) {
         JwtAuthenticationFilter jwtAuthenticationFilter =
                 new JwtAuthenticationFilter(
@@ -51,11 +55,14 @@ public class SecurityConfig {
                                         "/auth/refresh"
                                 )
                                 .permitAll()
+                                .requestMatchers("/security/admin")
+                                .hasRole("ADMIN")
                                 .anyRequest()
                                 .authenticated()
                 )
                 .exceptionHandling(exception -> exception
                         .authenticationEntryPoint(restAuthenticationEntryPoint)
+                        .accessDeniedHandler(restAccessDeniedHandler)
                 )
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
                 .sessionManagement(

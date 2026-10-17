@@ -6,14 +6,14 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.time.Duration;
 
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.httpBasic;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -145,5 +145,78 @@ public class JwtAuthenticationIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.name").value("999"))
                 .andExpect(jsonPath("$.authorities[0]").value("ROLE_ADMIN"));
+    }
+
+    @Test
+    void adminEndpoint_shouldReturn200_whenAccessTokenHasAdminRole() throws Exception {
+        String token = jwtTokenService.generateAccessToken(
+                999L,
+                "admin@example.com",
+                UserRole.ADMIN
+        );
+
+        mockMvc.perform(get("/security/admin")
+                .header("Authorization", "Bearer " + token)
+        )
+                .andExpect(status().isOk())
+                .andExpect(content().string("admin-secret"));
+    }
+
+    @Test
+    void adminEndpoint_shouldReturn403_whenAccessTokenHasUserRole() throws Exception {
+        String token = jwtTokenService.generateAccessToken(
+                999L,
+                "admin@example.com",
+                UserRole.USER
+        );
+
+        mockMvc.perform(get("/security/admin")
+                        .header("Authorization", "Bearer " + token)
+                )
+                .andExpect(status().isForbidden())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+                .andExpect(jsonPath("$.code").value("FORBIDDEN"))
+                .andExpect(jsonPath("$.message").value("Access is denied"));
+    }
+
+    @Test
+    void adminEndpoint_shouldReturn401_whenAccessTokenIsMissing() throws Exception {
+        mockMvc.perform(get("/security/admin"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+                .andExpect(jsonPath("$.code").value("UNAUTHORIZED"))
+                .andExpect(jsonPath("$.message").value("Authentication is required"));
+    }
+
+    @Test
+    void methodAdminEndpoint_shouldReturn200_whenAccessTokenHasAdminRole() throws Exception {
+        String token = jwtTokenService.generateAccessToken(
+                999L,
+                "admin@example.com",
+                UserRole.ADMIN
+        );
+
+        mockMvc.perform(get("/security/method-admin")
+                .header("Authorization", "Bearer " + token)
+        )
+                .andExpect(status().isOk())
+                .andExpect(content().string("method-admin-secret"));
+    }
+
+    @Test
+    void methodAdminEndpoint_shouldReturn403_whenAccessTokenHasUserRole() throws Exception {
+        String token = jwtTokenService.generateAccessToken(
+                999L,
+                "admin@example.com",
+                UserRole.USER
+        );
+
+        mockMvc.perform(get("/security/method-admin")
+                .header("Authorization", "Bearer " + token)
+        )
+                .andExpect(status().isForbidden())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+                .andExpect(jsonPath("$.code").value("FORBIDDEN"))
+                .andExpect(jsonPath("$.message").value("Access is denied"));
     }
 }

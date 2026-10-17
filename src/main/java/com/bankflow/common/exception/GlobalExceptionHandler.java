@@ -7,6 +7,7 @@ import com.bankflow.security.jwt.exception.InvalidJwtTokenException;
 import com.bankflow.security.jwt.exception.JwtTokenExpiredException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -151,6 +152,21 @@ public class GlobalExceptionHandler {
                         LocalDateTime.now()
                 )
         );
+    }
+
+    @ExceptionHandler(AccessDeniedException.class)
+    public ResponseEntity<ErrorResponse> handleAccessDenied(
+            AccessDeniedException e
+    ) {
+        return ResponseEntity
+                .status(HttpStatus.FORBIDDEN)
+                .body(
+                        new ErrorResponse(
+                                "FORBIDDEN",
+                                "Access is denied",
+                                LocalDateTime.now()
+                        )
+                );
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
