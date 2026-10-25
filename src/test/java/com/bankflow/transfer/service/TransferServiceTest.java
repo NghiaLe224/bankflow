@@ -119,12 +119,12 @@ class TransferServiceTest {
                         Currency.VND
                 );
 
-        when(accountRepository.findById(
+        when(accountRepository.findByIdForUpdate(
                 request.fromAccountId()
         ))
                 .thenReturn(Optional.of(fromAccount));
 
-        when(accountRepository.findById(
+        when(accountRepository.findByIdForUpdate(
                 request.toAccountId()
         ))
                 .thenReturn(Optional.of(toAccount));
@@ -284,25 +284,28 @@ class TransferServiceTest {
                         Currency.VND
                 );
 
-        when(accountRepository.findById(999L))
+        AccountEntity destinationAccount = mock(AccountEntity.class);
+
+        when(accountRepository.findByIdForUpdate(2L))
+                .thenReturn(Optional.of(destinationAccount));
+
+        when(accountRepository.findByIdForUpdate(999L))
                 .thenReturn(Optional.empty());
 
 
-        assertThrows(
+        AccountNotFoundException exception = assertThrows(
                 AccountNotFoundException.class,
                 () -> transferService
                         .createTransfer(request)
         );
 
+        assertEquals("Account 999 was not found", exception.getMessage());
 
         verify(accountRepository)
-                .findById(999L);
+                .findByIdForUpdate(2L);
 
-        verify(
-                accountRepository,
-                never()
-        )
-                .findById(2L);
+        verify(accountRepository)
+                .findByIdForUpdate(999L);
 
         verify(
                 transferRepository,
@@ -352,12 +355,12 @@ class TransferServiceTest {
                         AccountStatus.ACTIVE
                 );
 
-        when(accountRepository.findById(1L))
+        when(accountRepository.findByIdForUpdate(1L))
                 .thenReturn(
                         Optional.of(fromAccount)
                 );
 
-        when(accountRepository.findById(999L))
+        when(accountRepository.findByIdForUpdate(999L))
                 .thenReturn(Optional.empty());
 
 
@@ -369,13 +372,12 @@ class TransferServiceTest {
 
 
         verify(accountRepository)
-                .findById(1L);
-
-        verify(transferAuthorizationPolicy)
-                .assertCanCreateFrom(fromAccount);
+                .findByIdForUpdate(1L);
 
         verify(accountRepository)
-                .findById(999L);
+                .findByIdForUpdate(999L);
+
+        verifyNoInteractions(transferAuthorizationPolicy);
 
         verify(
                 transferRepository,
@@ -460,10 +462,15 @@ class TransferServiceTest {
                         Currency.VND
                 );
 
-        when(accountRepository.findById(30L))
+        AccountEntity destinationAccount = mock(AccountEntity.class);
+
+        when(accountRepository.findByIdForUpdate(30L))
                 .thenReturn(
                         Optional.of(fromAccount)
                 );
+
+        when(accountRepository.findByIdForUpdate(50L))
+                .thenReturn(Optional.of(destinationAccount));
 
         doThrow(
                 new ForbiddenOperationException()
@@ -494,11 +501,8 @@ class TransferServiceTest {
         verify(transferAuthorizationPolicy)
                 .assertCanCreateFrom(fromAccount);
 
-        verify(
-                accountRepository,
-                never()
-        )
-                .findById(50L);
+        verify(accountRepository)
+                .findByIdForUpdate(50L);
 
         verify(
                 transferRepository,
@@ -854,7 +858,7 @@ class TransferServiceTest {
 
 
     @Test
-    void createTransfer_shouldReject_whenAuthorizationPolicyRejectsSourceAccountBeforeDestinationLookup() {
+    void createTransfer_shouldLockAccountsInIdOrderBeforeRejectingUnauthorizedSource() {
 
         UserEntity owner =
                 new UserEntity(
@@ -878,13 +882,18 @@ class TransferServiceTest {
 
         CreateTransferRequest request =
                 new CreateTransferRequest(
-                        10L,
                         20L,
+                        10L,
                         new BigDecimal("500000"),
                         Currency.VND
                 );
 
-        when(accountRepository.findById(10L))
+        AccountEntity destinationAccount = mock(AccountEntity.class);
+
+        when(accountRepository.findByIdForUpdate(10L))
+                .thenReturn(Optional.of(destinationAccount));
+
+        when(accountRepository.findByIdForUpdate(20L))
                 .thenReturn(
                         Optional.of(fromAccount)
                 );
@@ -907,14 +916,10 @@ class TransferServiceTest {
         );
 
 
-        verify(transferAuthorizationPolicy)
-                .assertCanCreateFrom(fromAccount);
-
-        verify(
-                accountRepository,
-                never()
-        )
-                .findById(20L);
+        var order = inOrder(accountRepository, transferAuthorizationPolicy);
+        order.verify(accountRepository).findByIdForUpdate(10L);
+        order.verify(accountRepository).findByIdForUpdate(20L);
+        order.verify(transferAuthorizationPolicy).assertCanCreateFrom(fromAccount);
 
         verify(
                 transferRepository,

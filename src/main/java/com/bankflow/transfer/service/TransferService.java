@@ -66,13 +66,20 @@ public class TransferService {
             throw new InvalidTransferException("Source and destination accounts must be different");
         }
 
-        AccountEntity fromAccount = accountRepository.findById(request.fromAccountId())
-                .orElseThrow(() -> new AccountNotFoundException(request.fromAccountId()));
+        Long fromId = request.fromAccountId();
+        Long toId = request.toAccountId();
 
+        Long firstId = Math.min(fromId, toId);
+        Long secondId = Math.max(fromId, toId);
+
+        AccountEntity first = accountRepository.findByIdForUpdate(firstId)
+                .orElseThrow(() -> new AccountNotFoundException(firstId));
+        AccountEntity second = accountRepository.findByIdForUpdate(secondId)
+                .orElseThrow(() -> new AccountNotFoundException(secondId));
+
+        AccountEntity fromAccount = fromId.equals(firstId) ? first : second;
         transferAuthorizationPolicy.assertCanCreateFrom(fromAccount);
-
-        AccountEntity toAccount = accountRepository.findById(request.toAccountId())
-                .orElseThrow(() -> new AccountNotFoundException(request.toAccountId()));
+        AccountEntity toAccount = toId.equals(secondId) ? second : first;
 
         if (fromAccount.getStatus() != AccountStatus.ACTIVE) {
             throw new AccountInactiveException(fromAccount.getId());
