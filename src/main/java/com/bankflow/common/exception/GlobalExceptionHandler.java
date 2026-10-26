@@ -5,6 +5,7 @@ import com.bankflow.auth.exception.InvalidCredentialsException;
 import com.bankflow.security.exception.ForbiddenOperationException;
 import com.bankflow.security.jwt.exception.InvalidJwtTokenException;
 import com.bankflow.security.jwt.exception.JwtTokenExpiredException;
+import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
@@ -104,6 +105,17 @@ public class GlobalExceptionHandler {
                 new ErrorResponse(
                         "EMAIL_ALREADY_EXISTS",
                         e.getMessage(),
+                        LocalDateTime.now()
+                )
+        );
+    }
+
+    @ExceptionHandler(OptimisticLockingFailureException.class)
+    public ResponseEntity<ErrorResponse> handleOptimisticLockingFailure(OptimisticLockingFailureException e) {
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(
+                new ErrorResponse(
+                        "OPTIMISTIC_LOCK_CONFLICT",
+                        "Resource was modified concurrently. Please retry.",
                         LocalDateTime.now()
                 )
         );
