@@ -1,12 +1,14 @@
 package com.bankflow.transfer.controller;
 
 import com.bankflow.common.dto.PageResponse;
+import com.bankflow.common.exception.IdempotencyConflictException;
 import com.bankflow.common.exception.TransferNotFoundException;
 import com.bankflow.security.exception.ForbiddenOperationException;
 import com.bankflow.transfer.dto.CreateTransferRequest;
 import com.bankflow.transfer.dto.TransferResponse;
 import com.bankflow.transfer.enums.Currency;
 import com.bankflow.transfer.enums.TransferStatus;
+import com.bankflow.transfer.service.IdempotencyTransferService;
 import com.bankflow.transfer.service.TransferService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -20,8 +22,8 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.verifyNoInteractions;
-import static org.mockito.Mockito.when;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -32,6 +34,9 @@ public class TransferControllerTest {
 
     @MockitoBean
     private TransferService transferService;
+
+    @MockitoBean
+    private IdempotencyTransferService idempotencyTransferService;
 
     @Autowired
     private MockMvc mockMvc;
@@ -65,6 +70,7 @@ public class TransferControllerTest {
     void createTransfer_shouldReturn400_whenAmountIsNegative() throws Exception {
         mockMvc.perform(
                         post("/transfers")
+                                .header("Idempotency-Key", "test-invalid-amount")
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content("""
                                         {
@@ -79,6 +85,8 @@ public class TransferControllerTest {
                 .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
                 .andExpect(jsonPath("$.errors.amount")
                         .value("Amount must be greater than zero"));
+
+        verifyNoInteractions(idempotencyTransferService);
     }
 
     @Test
@@ -144,11 +152,12 @@ public class TransferControllerTest {
                 LocalDateTime.of(2026, 10, 5, 19, 30)
         );
 
-        when(transferService.createTransfer(any(CreateTransferRequest.class)))
+        when(idempotencyTransferService.create(any(CreateTransferRequest.class), eq("test-create-key")))
                 .thenReturn(response);
 
         mockMvc.perform(
                         post("/transfers")
+                                .header("Idempotency-Key", "test-create-key")
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content("""
                                         {
@@ -166,10 +175,18 @@ public class TransferControllerTest {
                 .andExpect(jsonPath("$.amount").value(500000.00))
                 .andExpect(jsonPath("$.currency").value("VND"))
                 .andExpect(jsonPath("$.status").value("COMPLETED"));
+
+        verify(idempotencyTransferService).create(
+                any(CreateTransferRequest.class),
+                eq("test-create-key")
+        );
+
+        verifyNoInteractions(transferService);
     }
 
     @Test
     void getTransferById_shouldReturn403_whenServiceRejectsAuthorization() throws Exception {
+
         when(transferService.findTransferById(100L))
                 .thenThrow(new ForbiddenOperationException());
 
@@ -178,4 +195,117 @@ public class TransferControllerTest {
                 .andExpect(jsonPath("$.code").value("FORBIDDEN"));
     }
 
+    @Test
+    void createTransfer_withoutIdempotencyKey_shouldReturn400() throws Exception {
+        mockMvc.perform(
+                        post("/transfers")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(
+                                        """
+                                                {
+                                                 "fromAccountId": 1,
+                                                 "toAccountId": 2,
+                                                 "amount": 1000000,
+                                                 "currency": "VND"
+                                                }
+                                                """
+                                )
+                )
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"));
+
+        verifyNoInteractions(idempotencyTransferService);
+    }
+
+    @Test
+    void createTransfer_withOversizedIdempotencyKey_shouldReturn400()
+            throws Exception {
+
+        String oversizedKey = "a".repeat(256);
+
+        mockMvc.perform(
+                        post("/transfers")
+                                .header("Idempotency-Key", oversizedKey)
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content("""
+                                        {
+                                          "fromAccountId": 1,
+                                          "toAccountId": 2,
+                                          "amount": 1000000,
+                                          "currency": "VND"
+                                        }
+                                        """)
+                )
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
+                .andExpect(jsonPath("$.message")
+                        .value("Request validation failed"));
+
+        verifyNoInteractions(idempotencyTransferService);
+    }
+
+    @Test
+    void createTransfer_withConflictingIdempotencyKey_shouldReturn409()
+            throws Exception {
+
+        String idempotencyKey = "conflict-key-123";
+
+        when(idempotencyTransferService.create(
+                any(CreateTransferRequest.class),
+                eq(idempotencyKey)
+        )).thenThrow(
+                new IdempotencyConflictException(
+                        "Idempotency key already used with different request"
+                )
+        );
+
+        mockMvc.perform(
+                        post("/transfers")
+                                .header("Idempotency-Key", idempotencyKey)
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content("""
+                                        {
+                                          "fromAccountId": 1,
+                                          "toAccountId": 2,
+                                          "amount": 2000000,
+                                          "currency": "VND"
+                                        }
+                                        """)
+                )
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("IDEMPOTENCY_CONFLICT"))
+                .andExpect(jsonPath("$.message").value(
+                        "Idempotency key already used with different request"
+                ));
+
+        verify(idempotencyTransferService).create(
+                any(CreateTransferRequest.class),
+                eq(idempotencyKey)
+        );
+
+        verifyNoInteractions(transferService);
+    }
+
+    @Test
+    void createTransfer_withBlankIdempotencyKey_shouldReturn400()
+            throws Exception {
+
+        mockMvc.perform(
+                        post("/transfers")
+                                .header("Idempotency-Key", "   ")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content("""
+                            {
+                              "fromAccountId": 1,
+                              "toAccountId": 2,
+                              "amount": 1000000,
+                              "currency": "VND"
+                            }
+                            """)
+                )
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"));
+
+        verifyNoInteractions(idempotencyTransferService);
+    }
 }

@@ -7,6 +7,7 @@ import com.bankflow.transfer.dto.TransferResponse;
 import com.bankflow.transfer.enums.TransferStatus;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.enums.ParameterIn;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.parameters.RequestBody;
@@ -15,6 +16,8 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
 import org.springframework.http.ResponseEntity;
 
 import java.time.LocalDateTime;
@@ -120,7 +123,16 @@ public interface TransferApi {
                     required = true
             )
             @Valid
-            CreateTransferRequest request
+            CreateTransferRequest request,
+            @Parameter(
+                    name = "Idempotency-Key",
+                    description = "Unique key for retrying the same transfer",
+                    required = true,
+                    in = ParameterIn.HEADER
+            )
+            @NotBlank
+            @Size(max = 255)
+            String idempotencyKey
     );
 
     @Operation(

@@ -5,6 +5,7 @@ import com.bankflow.transfer.api.TransferApi;
 import com.bankflow.transfer.dto.CreateTransferRequest;
 import com.bankflow.transfer.dto.TransferResponse;
 import com.bankflow.transfer.enums.TransferStatus;
+import com.bankflow.transfer.service.IdempotencyTransferService;
 import com.bankflow.transfer.service.TransferService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -17,9 +18,11 @@ import java.time.LocalDateTime;
 public class TransferController implements TransferApi {
 
     private final TransferService transferService;
+    private final IdempotencyTransferService idempotencyTransferService;
 
-    public TransferController(TransferService transferService) {
+    public TransferController(TransferService transferService, IdempotencyTransferService idempotencyTransferService) {
         this.transferService = transferService;
+        this.idempotencyTransferService = idempotencyTransferService;
     }
 
     @Override
@@ -30,8 +33,13 @@ public class TransferController implements TransferApi {
 
     @Override
     @PostMapping
-    public ResponseEntity<TransferResponse> createTransfer(@RequestBody CreateTransferRequest request) {
-        return ResponseEntity.status(HttpStatus.CREATED).body(transferService.createTransfer(request));
+    public ResponseEntity<TransferResponse> createTransfer(
+            @RequestBody CreateTransferRequest request,
+
+            @RequestHeader("Idempotency-Key")
+            String idempotencyKey
+    ) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(idempotencyTransferService.create(request, idempotencyKey));
     }
 
     @Override

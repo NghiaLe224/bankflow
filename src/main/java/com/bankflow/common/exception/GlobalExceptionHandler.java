@@ -10,6 +10,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingRequestHeaderException;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.method.annotation.HandlerMethodValidationException;
@@ -77,11 +78,24 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponse> handleHandlerMethodValidation(
             HandlerMethodValidationException e
     ) {
+        Map<String, String> errors = new HashMap<>();
+
+        e.getBeanResults().forEach(
+                parameterErrors ->
+                        parameterErrors.getFieldErrors().forEach(fieldError ->
+                                errors.put(
+                                        fieldError.getField(),
+                                        fieldError.getDefaultMessage()
+                                )
+                        )
+        );
+
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(
                 new ErrorResponse(
                         "VALIDATION_FAILED",
                         "Request validation failed",
-                        LocalDateTime.now()
+                        LocalDateTime.now(),
+                        errors
                 )
         );
     }
@@ -116,6 +130,28 @@ public class GlobalExceptionHandler {
                 new ErrorResponse(
                         "OPTIMISTIC_LOCK_CONFLICT",
                         "Resource was modified concurrently. Please retry.",
+                        LocalDateTime.now()
+                )
+        );
+    }
+
+    @ExceptionHandler(IdempotencyConflictException.class)
+    public ResponseEntity<ErrorResponse> handleIdempotencyConflict(IdempotencyConflictException e) {
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(new ErrorResponse(
+                "IDEMPOTENCY_CONFLICT",
+                e.getMessage(),
+                LocalDateTime.now()
+        ));
+    }
+
+    @ExceptionHandler(MissingRequestHeaderException.class)
+    public ResponseEntity<ErrorResponse> handleMissingRequestHeader(
+            MissingRequestHeaderException e
+    ) {
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(
+                new ErrorResponse(
+                        "VALIDATION_FAILED",
+                        "Missing required header: " + e.getHeaderName(),
                         LocalDateTime.now()
                 )
         );
