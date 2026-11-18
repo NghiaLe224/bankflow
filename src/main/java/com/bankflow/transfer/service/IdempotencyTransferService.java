@@ -1,70 +1,49 @@
 package com.bankflow.transfer.service;
 
-import com.bankflow.common.exception.IdempotencyConflictException;
-import com.bankflow.common.exception.TransferNotFoundException;
-import com.bankflow.common.exception.UserNotFoundException;
-import com.bankflow.security.CurrentUserService;
 import com.bankflow.transfer.dto.CreateTransferRequest;
 import com.bankflow.transfer.dto.TransferResponse;
-import com.bankflow.transfer.entity.IdempotencyRecordEntity;
-import com.bankflow.transfer.entity.TransferEntity;
-import com.bankflow.transfer.mapper.TransferMapper;
-import com.bankflow.transfer.repository.IdempotencyRecordRepository;
-import com.bankflow.transfer.repository.TransferRepository;
-import com.bankflow.user.entity.UserEntity;
-import com.bankflow.user.repository.UserRepository;
+import org.hibernate.exception.ConstraintViolationException;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-
-import java.util.Optional;
 
 @Service
 public class IdempotencyTransferService {
 
-    private final TransferService transferService;
-    private final IdempotencyRecordRepository idempotencyRecordRepository;
-    private final TransferRequestFingerprint transferRequestFingerprint;
-    private final CurrentUserService currentUserService;
-    private final UserRepository userRepository;
-    private final TransferRepository transferRepository;
-    private final TransferMapper transferMapper;
+    private final IdempotencyTransferAttemptService idempotencyTransferAttemptService;
+    private final IdempotencyRecoveryService idempotencyRecoveryService;
 
-    public IdempotencyTransferService(TransferService transferService, IdempotencyRecordRepository idempotencyRecordRepository, TransferRequestFingerprint transferRequestFingerprint, CurrentUserService currentUserService, UserRepository userRepository, TransferRepository transferRepository, TransferMapper transferMapper) {
-        this.transferService = transferService;
-        this.idempotencyRecordRepository = idempotencyRecordRepository;
-        this.transferRequestFingerprint = transferRequestFingerprint;
-        this.currentUserService = currentUserService;
-        this.userRepository = userRepository;
-        this.transferRepository = transferRepository;
-        this.transferMapper = transferMapper;
+    public IdempotencyTransferService(
+            IdempotencyTransferAttemptService idempotencyTransferAttemptService,
+            IdempotencyRecoveryService idempotencyRecoveryService
+    ) {
+        this.idempotencyTransferAttemptService = idempotencyTransferAttemptService;
+        this.idempotencyRecoveryService = idempotencyRecoveryService;
     }
 
-    @Transactional
-    public TransferResponse create(CreateTransferRequest request, String idempotencyKey) {
-        Long currentUserId = currentUserService.getCurrentUserId();
-        String fingerprint = transferRequestFingerprint.fingerprint(request);
-        Optional<IdempotencyRecordEntity> existingRecord = idempotencyRecordRepository
-                .findByUser_IdAndIdempotencyKey(currentUserId, idempotencyKey);
-
-        if (existingRecord.isPresent()) {
-            IdempotencyRecordEntity record = existingRecord.get();
-            if (!record.getRequestFingerprint().equals(fingerprint)) {
-                throw new IdempotencyConflictException("Idempotency key already used with different request");
+    public TransferResponse create(
+            CreateTransferRequest request,
+            String idempotencyKey
+    ) {
+        try {
+            return idempotencyTransferAttemptService.execute(request, idempotencyKey);
+        } catch (DataIntegrityViolationException e) {
+            if (!isIdempotencyUniqueViolation(e)) {
+                throw e;
             }
-            return transferMapper.toResponse(record.getTransfer());
+            return idempotencyRecoveryService.recover(request, idempotencyKey);
         }
+    }
 
-        TransferResponse transferResponse = transferService.createTransfer(request);
-        UserEntity user = userRepository.findById(currentUserId)
-                .orElseThrow(() -> new UserNotFoundException(currentUserId));
-        TransferEntity transfer = transferRepository.findById(transferResponse.id())
-                .orElseThrow(() -> new TransferNotFoundException(transferResponse.id()));
-        idempotencyRecordRepository.save(new IdempotencyRecordEntity(
-                user,
-                idempotencyKey,
-                fingerprint,
-                transfer
-        ));
-        return transferResponse;
+    private boolean isIdempotencyUniqueViolation(DataIntegrityViolationException exception) {
+        Throwable cause = exception;
+        while (cause != null) {
+            if (cause instanceof ConstraintViolationException cve) {
+                if ("23505".equals(cve.getSQLState()) && "uq_user_id_idempotency_key".equals(cve.getConstraintName())) {
+                    return true;
+                }
+            }
+            cause = cause.getCause();
+        }
+        return false;
     }
 }
