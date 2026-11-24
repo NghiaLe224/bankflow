@@ -100,6 +100,17 @@ public class GlobalExceptionHandler {
         );
     }
 
+    @ExceptionHandler(PaymentNotFoundException.class)
+    public ResponseEntity<ErrorResponse> handlePaymentNotFound(PaymentNotFoundException e) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(
+                new ErrorResponse(
+                        "PAYMENT_NOT_FOUND",
+                        e.getMessage(),
+                        LocalDateTime.now()
+                )
+        );
+    }
+
     @ExceptionHandler(InvalidTransferFilterException.class)
     public ResponseEntity<ErrorResponse> handleInvalidTransferFilter(
             InvalidTransferFilterException e
