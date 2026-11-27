@@ -200,5 +200,7 @@ public class PaymentEntity {
         }
     }
 
-
+    public void markUnknown() {
+        transitionTo(PaymentStatus.UNKNOWN);
+    }
 }

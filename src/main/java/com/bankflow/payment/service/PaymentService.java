@@ -1,5 +1,6 @@
 package com.bankflow.payment.service;
 
+import com.bankflow.common.exception.PaymentOutcomeUnknownException;
 import com.bankflow.payment.provider.PaymentProvider;
 import com.bankflow.payment.provider.ProviderPaymentRequest;
 import com.bankflow.payment.provider.ProviderPaymentResult;
@@ -27,12 +28,19 @@ public class PaymentService {
 
     public Long processPayment(String merchantReference, BigDecimal amount, Currency currency) {
         Long paymentId = paymentCreationService.createPending(merchantReference, amount, currency);
-        ProviderPaymentResult providerResult = paymentProvider.charge(new ProviderPaymentRequest(
-                merchantReference,
-                amount,
-                currency
-        ));
+        ProviderPaymentResult providerResult;
+        try{
+            providerResult = paymentProvider.charge(new ProviderPaymentRequest(
+                    merchantReference,
+                    amount,
+                    currency
+            ));
+        } catch (PaymentOutcomeUnknownException e) {
+            paymentResultService.markUnknown(paymentId);
+            return paymentId;
+        }
         paymentResultService.applyResult(paymentId, providerResult);
+
         return paymentId;
     }
 }

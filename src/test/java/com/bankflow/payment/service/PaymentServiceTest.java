@@ -1,6 +1,7 @@
 
 package com.bankflow.payment.service;
 
+import com.bankflow.common.exception.PaymentOutcomeUnknownException;
 import com.bankflow.payment.provider.PaymentProvider;
 import com.bankflow.payment.provider.ProviderPaymentRequest;
 import com.bankflow.payment.provider.ProviderPaymentResult;
@@ -274,4 +275,52 @@ class PaymentServiceTest {
                 pendingResult
         );
     }
+
+
+    @Test
+    void processPayment_unknownOutcome_shouldMarkUnknownWithoutRetry() {
+        // Arrange
+        when(creationService.createPending(
+                merchantReference, amount, currency
+        )).thenReturn(paymentId);
+
+        PaymentOutcomeUnknownException timeout =
+                new PaymentOutcomeUnknownException(
+                        "Provider response timeout"
+                );
+
+        when(paymentProvider.charge(request))
+                .thenThrow(timeout);
+
+        // Act
+        Long actualId = paymentService.processPayment(
+                merchantReference,
+                amount,
+                currency
+        );
+
+        // Assert
+        assertEquals(paymentId, actualId);
+
+        InOrder inOrder = inOrder(
+                creationService,
+                paymentProvider,
+                resultService
+        );
+
+        inOrder.verify(creationService)
+                .createPending(merchantReference, amount, currency);
+
+        inOrder.verify(paymentProvider)
+                .charge(request);
+
+        inOrder.verify(resultService)
+                .markUnknown(paymentId);
+
+        inOrder.verifyNoMoreInteractions();
+
+        verify(paymentProvider, times(1)).charge(request);
+        verify(resultService, never()).applyResult(any(), any());
+    }
+
 }

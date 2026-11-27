@@ -27,4 +27,11 @@ public class PaymentResultService {
 
         payment.applyProviderResult(result);
     }
+
+    @Transactional
+    public void markUnknown(Long paymentId) {
+        PaymentEntity payment = paymentRepository.findById(paymentId)
+                .orElseThrow(() -> new PaymentNotFoundException("Payment with id: " + paymentId + " not found"));
+        payment.markUnknown();
+    }
 }

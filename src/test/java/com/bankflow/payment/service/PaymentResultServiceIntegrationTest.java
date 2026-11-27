@@ -3,7 +3,6 @@ package com.bankflow.payment.service;
 import com.bankflow.common.exception.PaymentNotFoundException;
 import com.bankflow.payment.domain.PaymentStatus;
 import com.bankflow.payment.entity.PaymentEntity;
-import com.bankflow.payment.provider.ProviderPaymentRequest;
 import com.bankflow.payment.provider.ProviderPaymentResult;
 import com.bankflow.payment.provider.ProviderPaymentStatus;
 import com.bankflow.payment.repository.PaymentRepository;
@@ -28,12 +27,13 @@ public class PaymentResultServiceIntegrationTest {
 
     @Autowired
     private PaymentCreationService paymentCreationService;
+
     @Autowired
     private PaymentResultService paymentResultService;
 
     @AfterEach
     void cleanUp() {
-        if(paymentId != null) {
+        if (paymentId != null) {
             paymentRepository.deleteById(paymentId);
         }
     }
@@ -152,6 +152,75 @@ public class PaymentResultServiceIntegrationTest {
 
         assertTrue(exception.getMessage().contains("-1"));
     }
+
+
+    @Test
+    void markUnknown_shouldPersistUnknownStatus() {
+        // Arrange
+        paymentId = paymentCreationService.createPending(
+                "PAY-" + UUID.randomUUID(),
+                new BigDecimal("100000.00"),
+                Currency.VND
+        );
+
+        PaymentEntity before = paymentRepository.findById(paymentId)
+                .orElseThrow();
+
+        assertEquals(PaymentStatus.PENDING, before.getStatus());
+        assertEquals(0L, before.getVersion());
+
+        // Act
+        paymentResultService.markUnknown(paymentId);
+
+        // Assert
+        PaymentEntity after = paymentRepository.findById(paymentId)
+                .orElseThrow();
+
+        assertEquals(PaymentStatus.UNKNOWN, after.getStatus());
+        assertNull(after.getProviderReference());
+        assertEquals(1L, after.getVersion());
+    }
+
+
+    @Test
+    void markUnknown_afterSuccess_shouldRejectAndPreserveDatabaseState() {
+        // Arrange
+        paymentId = paymentCreationService.createPending(
+                "PAY-" + UUID.randomUUID(),
+                new BigDecimal("100000.00"),
+                Currency.VND
+        );
+
+        String providerRef = "FAKE-" + UUID.randomUUID();
+
+        paymentResultService.applyResult(
+                paymentId,
+                new ProviderPaymentResult(
+                        providerRef,
+                        ProviderPaymentStatus.SUCCESS
+                )
+        );
+
+        PaymentEntity before = paymentRepository.findById(paymentId)
+                .orElseThrow();
+
+        assertEquals(PaymentStatus.SUCCESS, before.getStatus());
+
+        // Act
+        assertThrows(
+                IllegalStateException.class,
+                () -> paymentResultService.markUnknown(paymentId)
+        );
+
+        // Assert
+        PaymentEntity after = paymentRepository.findById(paymentId)
+                .orElseThrow();
+
+        assertEquals(PaymentStatus.SUCCESS, after.getStatus());
+        assertEquals(providerRef, after.getProviderReference());
+        assertEquals(before.getVersion(), after.getVersion());
+    }
+
 
 
 }
